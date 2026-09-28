@@ -44,3 +44,7 @@ def create_app():
     app.register_blueprint(main_bp)
 
     return app
+
+# Gunicorn에서 'app' 패키지 자체를 import할 때 'app' 속성을 찾을 수 있도록 기본 인스턴스 생성
+app = create_app()
+
