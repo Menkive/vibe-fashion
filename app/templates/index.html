@@ -7,7 +7,8 @@
 <section class="hero-section text-white">
     <div class="container py-4">
         <div class="row align-items-center">
-            <div class="col-lg-8 col-xl-7 text-center text-lg-start">
+            <!-- 왼쪽: 헤드라인 및 액션 버튼 -->
+            <div class="col-lg-7 col-xl-7 text-center text-lg-start order-2 order-lg-1">
                 <span class="season-badge mb-3">2026 K LEAGUE OFFICIAL MD</span>
                 <h1 class="display-4 fw-bold mb-3">
                     양산의 심장을 뛰게 할<br>
@@ -24,6 +25,15 @@
                     <a href="{{ url_for('main.vote_page') }}" class="btn btn-cta-secondary d-inline-flex align-items-center justify-content-center gap-2">
                         <i class="bi bi-patch-check-fill"></i> 2027 유니폼 팬 투표
                     </a>
+                </div>
+            </div>
+            <!-- 오른쪽: 원형 공식 엠블럼 -->
+            <div class="col-lg-5 col-xl-5 text-center order-1 order-lg-2 mb-4 mb-lg-0 hero-emblem-col">
+                <div class="hero-emblem-wrapper">
+                    <img src="{{ url_for('static', filename='images/yangsan-fc-emblem.png') }}"
+                         alt="양산시민축구단 공식 엠블럼"
+                         class="hero-emblem-img img-fluid"
+                         loading="eager">
                 </div>
             </div>
         </div>
@@ -81,11 +91,12 @@
         </a>
     </div>
 
-    <!-- 인기 상품 4개 그리드 -->
-    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
+    <!-- 인기 상품 6개 그리드 (데스크톱 3열 x 2행, 태블릿 2열, 모바일 1열) -->
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
         {% for product in products %}
         <div class="col">
-            <div class="card h-100 product-card">
+            <div class="card h-100 product-card shadow-sm">
+                <!-- 1. 유니폼 이미지 -->
                 <a href="{{ url_for('main.product_detail', product_id=product.id) }}" class="text-decoration-none">
                     <div class="product-image-wrapper">
                         <img src="{{ product.thumbnail_url or product.image_url }}" class="product-img" alt="{{ product.name }}" loading="lazy">
@@ -93,24 +104,32 @@
                         <span class="product-badge-authentic">AUTHENTIC</span>
                     </div>
                 </a>
-                <div class="card-body d-flex flex-column p-3">
+                <div class="card-body d-flex flex-column p-4">
+                    <!-- 2. 상품 분류 -->
                     <span class="product-category-text mb-1">{{ product.category }}</span>
-                    <h5 class="product-card-title">
+
+                    <!-- 3. 상품명 -->
+                    <h5 class="product-card-title mb-2">
                         <a href="{{ url_for('main.product_detail', product_id=product.id) }}" class="text-decoration-none text-reset">
                             {{ product.name }}
                         </a>
                     </h5>
-                    <p class="product-card-desc flex-grow-1">{{ product.description }}</p>
+
+                    <!-- 4. 간단한 설명 -->
+                    <p class="product-card-desc flex-grow-1 mb-3">{{ product.description }}</p>
                     
-                    <div class="d-flex justify-content-between align-items-end pt-3 border-top border-light-subtle">
+                    <div class="d-flex justify-content-between align-items-center pt-3 border-top border-light-subtle">
+                        <!-- 5. 가격 -->
                         <div class="product-price-wrapper">
                             {% if product.original_price %}
                             <span class="product-original-price">{{ product.original_price }}</span>
                             {% endif %}
                             <span class="product-price">{{ product.price }}</span>
                         </div>
+
+                        <!-- 6. 담기 버튼 -->
                         <a href="{{ url_for('main.product_detail', product_id=product.id) }}" class="btn-card-action text-decoration-none">
-                            <i class="bi bi-eye"></i> 보기
+                            <i class="bi bi-cart-plus me-1"></i> 담기
                         </a>
                     </div>
                 </div>

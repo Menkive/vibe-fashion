@@ -1,8 +1,9 @@
 # app/routes/main.py - 양산시민축구단 공식 온라인 스토어 라우트
 import os
+import re
 import sys
 import logging
-from flask import Blueprint, render_template, request, jsonify, abort
+from flask import Blueprint, render_template, request, jsonify, abort, session, redirect, url_for
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from app.models import INITIAL_PRODUCTS, get_vote_candidates, cast_vote
@@ -97,7 +98,25 @@ def fetch_all_products():
 
 
 def get_product_by_id(product_id):
-    """상품 ID로 단일 상품 조회"""
+    """상품 ID로 단일 상품 조회 (인기상품 6종 및 전체 상품 지원)"""
+    featured = get_featured_products()
+    for fp in featured:
+        if str(fp["id"]) == str(product_id):
+            return {
+                "id": fp["id"],
+                "name": fp["name"],
+                "slug": f"yangsan-uniform-{fp['id']}",
+                "category": fp["category"],
+                "price": fp["price_num"],
+                "original_price": None,
+                "description": fp["description"],
+                "image_url": fp["image_url"],
+                "thumbnail_url": fp["thumbnail_url"],
+                "stock": fp["stock"],
+                "sizes": ["S", "M", "L", "XL", "XXL"],
+                "badge": fp["badge"],
+                "is_featured": True
+            }
     products = fetch_all_products()
     for p in products:
         if str(p["id"]) == str(product_id):
@@ -107,66 +126,91 @@ def get_product_by_id(product_id):
 
 def get_featured_products():
     """
-    Supabase products 테이블에서 활성 상품을 최대 4개 조회합니다.
-    - 실패 시 빈 리스트([])로 대체하여 앱이 중단되지 않도록 합니다.
-    - 가격은 {:,}원 형태(예: '19,900원')로 포맷팅합니다.
+    메인 페이지 인기상품(BEST SELLERS) 6개 상품 목록을 반환합니다.
+    - 양산FC 유니폼 컬렉션 6종 구성
+    - 이미지: static/images/...png
     """
-    supabase = get_supabase_client()
-    if not supabase:
-        print("[Supabase Warning] Supabase 클라이언트를 초기화할 수 없습니다. .env 설정을 확인하세요.", file=sys.stderr)
-        return []
-
-    try:
-        # 우선 is_active=True 상품을 최대 4개 조회 (필요 시 is_featured가 있는 레코드 우선 정렬)
-        response = (
-            supabase.table('products')
-            .select('*')
-            .eq('is_active', True)
-            .limit(4)
-            .execute()
-        )
-        data = response.data
-
-        formatted_products = []
-        for item in data or []:
-            raw_price = item.get('price')
-            if raw_price is not None:
-                try:
-                    price_str = f"{int(float(raw_price)):,}원"
-                except (ValueError, TypeError):
-                    price_str = f"{raw_price}원"
-            else:
-                price_str = "0원"
-
-            raw_orig_price = item.get('original_price')
-            if raw_orig_price is not None:
-                try:
-                    orig_price_str = f"{int(float(raw_orig_price)):,}원"
-                except (ValueError, TypeError):
-                    orig_price_str = f"{raw_orig_price}원"
-            else:
-                orig_price_str = None
-
-            thumbnail = item.get('thumbnail_url') or item.get('image_url') or 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=800&q=80'
-
-            formatted_products.append({
-                "id": item.get('id'),
-                "name": item.get('name', '상품명 없음'),
-                "price": price_str,
-                "original_price": orig_price_str,
-                "thumbnail_url": thumbnail,
-                "image_url": thumbnail,
-                "description": item.get('description', ''),
-                "category": item.get('category', '공식 굿즈'),
-                "badge": item.get('badge') or 'BEST',
-                "stock": item.get('stock', 50)
-            })
-
-        return formatted_products
-
-    except Exception as e:
-        print(f"[Supabase Error] products 테이블 조회 중 에러 발생: {e}", file=sys.stderr)
-        return []
+    uniform_products = [
+        {
+            "id": 1,
+            "name": "양산FC 홈 유니폼",
+            "category": "푸른색",
+            "price": "129,000원",
+            "price_num": 129000,
+            "original_price": None,
+            "image_url": "/static/images/home-uniform.png",
+            "thumbnail_url": "/static/images/home-uniform.png",
+            "description": "양산의 푸른 투혼을 담은 시그니처 로열 블루 홈 경기용 유니폼입니다.",
+            "badge": "BEST",
+            "stock": 50
+        },
+        {
+            "id": 2,
+            "name": "양산FC 어웨이 유니폼",
+            "category": "흰색",
+            "price": "119,000원",
+            "price_num": 119000,
+            "original_price": None,
+            "image_url": "/static/images/away-uniform.png",
+            "thumbnail_url": "/static/images/away-uniform.png",
+            "description": "세련된 화이트 톤과 깔끔한 배색이 돋보이는 원정 경기용 공식 저지입니다.",
+            "badge": "NEW",
+            "stock": 50
+        },
+        {
+            "id": 3,
+            "name": "양산FC 브라운 스페셜 유니폼",
+            "category": "갈색",
+            "price": "139,000원",
+            "price_num": 139000,
+            "original_price": None,
+            "image_url": "/static/images/brown-uniform.png",
+            "thumbnail_url": "/static/images/brown-uniform.png",
+            "description": "고급스러운 브라운 컬러웨이에 정밀 그래픽 패턴을 더한 한정판 스페셜 에디션입니다.",
+            "badge": "LIMITED",
+            "stock": 30
+        },
+        {
+            "id": 4,
+            "name": "양산FC 블루 스트라이프 유니폼",
+            "category": "푸른색 세로 줄무늬",
+            "price": "135,000원",
+            "price_num": 135000,
+            "original_price": None,
+            "image_url": "/static/images/stripe-uniform.png",
+            "thumbnail_url": "/static/images/stripe-uniform.png",
+            "description": "클래식한 버티컬 골드 & 블루 스트라이프로 전통과 자부심을 표현한 저지입니다.",
+            "badge": "MD 추천",
+            "stock": 45
+        },
+        {
+            "id": 5,
+            "name": "양산FC GK 레드 유니폼",
+            "category": "붉은색",
+            "price": "125,000원",
+            "price_num": 125000,
+            "original_price": None,
+            "image_url": "/static/images/gk-red-uniform.png",
+            "thumbnail_url": "/static/images/gk-red-uniform.png",
+            "description": "강렬한 레드 컬러로 골문을 든든하게 지켜내는 수문장을 위한 골키퍼 유니폼입니다.",
+            "badge": "GK",
+            "stock": 35
+        },
+        {
+            "id": 6,
+            "name": "양산FC GK 그린 유니폼",
+            "category": "녹색",
+            "price": "125,000원",
+            "price_num": 125000,
+            "original_price": None,
+            "image_url": "/static/images/gk-green-uniform.png",
+            "thumbnail_url": "/static/images/gk-green-uniform.png",
+            "description": "역동적인 그린 브러시 패턴과 최적의 활동성을 제공하는 골키퍼 유니폼입니다.",
+            "badge": "GK",
+            "stock": 35
+        }
+    ]
+    return uniform_products
 
 
 @main_bp.route('/')
@@ -237,3 +281,160 @@ def api_vote():
 def api_products():
     """JSON 상품 목록 API"""
     return jsonify(fetch_all_products())
+
+
+# ==============================================================================
+# 회원 인증 라우트 (Supabase Auth 연동)
+# ==============================================================================
+
+@main_bp.route('/signup', methods=['GET', 'POST'])
+def signup():
+    """회원가입 페이지 및 회원가입 처리"""
+    if request.method == 'GET':
+        if session.get('user'):
+            return redirect(url_for('main.index'))
+        return render_template('signup.html')
+
+    # POST 처리
+    data = request.get_json(silent=True) or request.form
+    name = (data.get('name') or '').strip()
+    email = (data.get('email') or '').strip()
+    password = data.get('password') or ''
+    password_confirm = data.get('password_confirm') or ''
+    phone = (data.get('phone') or '').strip()
+    terms = data.get('terms')
+    privacy = data.get('privacy')
+
+    # 유효성 검사
+    if not name:
+        return jsonify({"success": False, "message": "이름을 입력해 주세요."}), 400
+
+    email_regex = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+    if not email or not re.match(email_regex, email):
+        return jsonify({"success": False, "message": "올바른 이메일 주소를 입력해 주세요."}), 400
+
+    if not password or len(password) < 6:
+        return jsonify({"success": False, "message": "비밀번호는 최소 6자 이상이어야 합니다."}), 400
+
+    if password != password_confirm:
+        return jsonify({"success": False, "message": "비밀번호가 일치하지 않습니다."}), 400
+
+    if not terms or not privacy:
+        return jsonify({"success": False, "message": "이용약관 및 개인정보 처리방침에 모두 동의해야 합니다."}), 400
+
+    supabase = get_supabase_client()
+    if not supabase:
+        return jsonify({"success": False, "message": "인증 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."}), 503
+
+    try:
+        # Supabase Auth signUp 호출
+        auth_res = supabase.auth.sign_up({
+            "email": email,
+            "password": password,
+            "options": {
+                "data": {
+                    "full_name": name,
+                    "phone": phone
+                }
+            }
+        })
+
+        user = auth_res.user
+        if not user:
+            return jsonify({"success": False, "message": "회원가입에 실패했습니다. 다시 시도해 주세요."}), 400
+
+        # 세션 정보 저장 (로그인 처리)
+        session['user'] = {
+            "id": str(user.id),
+            "email": user.email,
+            "name": name,
+            "phone": phone
+        }
+        if auth_res.session:
+            session['access_token'] = auth_res.session.access_token
+
+        return jsonify({
+            "success": True,
+            "message": f"{name}님, 양산시민축구단 공식 스토어 회원이 되신 것을 환영합니다!"
+        })
+
+    except Exception as e:
+        logger.error(f"회원가입 오류: {e}")
+        err_msg = str(e)
+        if "User already registered" in err_msg or "already exists" in err_msg:
+            return jsonify({"success": False, "message": "이미 가입된 이메일 주소입니다. 로그인해 주세요."}), 400
+        return jsonify({"success": False, "message": f"회원가입 처리 중 오류가 발생했습니다: {err_msg}"}), 400
+
+
+@main_bp.route('/login', methods=['GET', 'POST'])
+def login():
+    """로그인 페이지 및 로그인 처리"""
+    if request.method == 'GET':
+        if session.get('user'):
+            return redirect(url_for('main.index'))
+        return render_template('login.html')
+
+    # POST 처리
+    data = request.get_json(silent=True) or request.form
+    email = (data.get('email') or '').strip()
+    password = data.get('password') or ''
+    remember = data.get('remember')
+
+    if not email or not password:
+        return jsonify({"success": False, "message": "이메일과 비밀번호를 모두 입력해 주세요."}), 400
+
+    supabase = get_supabase_client()
+    if not supabase:
+        return jsonify({"success": False, "message": "인증 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요."}), 503
+
+    try:
+        auth_res = supabase.auth.sign_in_with_password({
+            "email": email,
+            "password": password
+        })
+
+        user = auth_res.user
+        if not user:
+            return jsonify({"success": False, "message": "이메일 또는 비밀번호가 일치하지 않습니다."}), 400
+
+        user_metadata = user.user_metadata or {}
+        user_name = user_metadata.get('full_name') or user_metadata.get('name') or email.split('@')[0]
+
+        session['user'] = {
+            "id": str(user.id),
+            "email": user.email,
+            "name": user_name,
+            "phone": user_metadata.get('phone', '')
+        }
+        if auth_res.session:
+            session['access_token'] = auth_res.session.access_token
+
+        if remember:
+            session.permanent = True
+
+        return jsonify({
+            "success": True,
+            "message": f"{user_name}님, 환영합니다!"
+        })
+
+    except Exception as e:
+        logger.error(f"로그인 오류: {e}")
+        err_msg = str(e)
+        if "Invalid login credentials" in err_msg:
+            return jsonify({"success": False, "message": "이메일 또는 비밀번호가 올바르지 않습니다."}), 401
+        return jsonify({"success": False, "message": "로그인에 실패했습니다. 입력 정보를 확인해 주세요."}), 400
+
+
+@main_bp.route('/logout', methods=['GET', 'POST'])
+def logout():
+    """로그아웃 처리 (Supabase signOut 및 세션 삭제)"""
+    try:
+        supabase = get_supabase_client()
+        if supabase:
+            supabase.auth.sign_out()
+    except Exception as e:
+        logger.warning(f"Supabase signOut 예외: {e}")
+
+    session.clear()
+    return redirect(url_for('main.index'))
+

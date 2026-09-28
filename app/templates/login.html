@@ -1,0 +1,148 @@
+{% extends 'base.html' %}
+
+{% block title %}로그인 | 양산시민축구단 공식 온라인 스토어{% endblock %}
+
+{% block content %}
+<section class="auth-section py-5">
+    <div class="container py-3">
+        <div class="row justify-content-center">
+            <div class="col-12 col-sm-10 col-md-8 col-lg-5 col-xl-4">
+                <div class="card auth-card shadow-lg border-0">
+                    <div class="card-body p-4 p-sm-5">
+                        <!-- 상단 로고 및 타이틀 -->
+                        <div class="text-center mb-4">
+                            <img src="{{ url_for('static', filename='images/yangsan-fc-symbol.png') }}"
+                                 alt="양산시민축구단 심볼 로고"
+                                 class="auth-brand-logo mb-3">
+                            <h3 class="fw-bold text-dark mb-1">양산시민축구단</h3>
+                            <p class="text-muted small">공식 온라인 스토어에 오신 것을 환영합니다</p>
+                        </div>
+
+                        <!-- 알림 메시지 영역 -->
+                        <div id="auth-alert" class="alert d-none py-2 px-3 small rounded-3 mb-3" role="alert"></div>
+
+                        <!-- 로그인 폼 -->
+                        <form id="login-form" novalidate>
+                            <div class="mb-3">
+                                <label for="login-email" class="form-label small fw-semibold text-secondary">이메일 주소</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0 text-muted">
+                                        <i class="bi bi-envelope"></i>
+                                    </span>
+                                    <input type="email" class="form-control border-start-0 ps-0" id="login-email" placeholder="example@email.com" required autocomplete="email">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="login-password" class="form-label small fw-semibold text-secondary">비밀번호</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0 text-muted">
+                                        <i class="bi bi-lock"></i>
+                                    </span>
+                                    <input type="password" class="form-control border-start-0 ps-0" id="login-password" placeholder="비밀번호 입력" required autocomplete="current-password">
+                                    <button class="btn btn-outline-secondary border-start-0 bg-light text-muted" type="button" id="toggle-password-btn">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 상태 유지 & 비밀번호 찾기 -->
+                            <div class="d-flex justify-content-between align-items-center mb-4 small">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="login-remember" checked>
+                                    <label class="form-check-label text-muted" for="login-remember">
+                                        로그인 상태 유지
+                                    </label>
+                                </div>
+                                <a href="javascript:void(0);" onclick="alert('비밀번호 재설정 링크는 고객센터(1588-0000) 또는 관리자에게 문의해 주세요.');" class="text-decoration-none text-secondary">
+                                    비밀번호 찾기
+                                </a>
+                            </div>
+
+                            <!-- 로그인 제출 버튼 -->
+                            <button type="submit" class="btn btn-auth-submit w-100 py-3 fw-bold mb-3" id="btn-login-submit">
+                                <span class="spinner-border spinner-border-sm me-2 d-none" id="login-spinner" role="status"></span>
+                                <i class="bi bi-box-arrow-in-right me-1"></i> 로그인
+                            </button>
+                        </form>
+
+                        <!-- 회원가입 유도 링크 -->
+                        <div class="text-center pt-3 border-top border-light-subtle small text-muted">
+                            아직 회원이 아니신가요?
+                            <a href="{{ url_for('main.signup') }}" class="fw-bold text-decoration-none text-primary ms-1">
+                                회원가입 <i class="bi bi-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('login-form');
+    const alertBox = document.getElementById('auth-alert');
+    const submitBtn = document.getElementById('btn-login-submit');
+    const spinner = document.getElementById('login-spinner');
+    const togglePwBtn = document.getElementById('toggle-password-btn');
+    const pwInput = document.getElementById('login-password');
+
+    // 비밀번호 표시 토글
+    togglePwBtn.addEventListener('click', () => {
+        const isPassword = pwInput.getAttribute('type') === 'password';
+        pwInput.setAttribute('type', isPassword ? 'text' : 'password');
+        togglePwBtn.innerHTML = isPassword ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
+    });
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        alertBox.className = 'alert d-none';
+
+        const email = document.getElementById('login-email').value.trim();
+        const password = pwInput.value;
+        const remember = document.getElementById('login-remember').checked;
+
+        if (!email || !password) {
+            showAlert('이메일과 비밀번호를 모두 입력해 주세요.', 'danger');
+            return;
+        }
+
+        // 로딩 시작
+        submitBtn.disabled = true;
+        spinner.classList.remove('d-none');
+
+        try {
+            const res = await fetch("{{ url_for('main.login') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, password, remember })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                showAlert(data.message || '로그인 성공! 잠시 후 이동합니다.', 'success');
+                setTimeout(() => {
+                    window.location.href = "{{ url_for('main.index') }}";
+                }, 700);
+            } else {
+                showAlert(data.message || '로그인에 실패했습니다.', 'danger');
+            }
+        } catch (err) {
+            showAlert('서버와의 통신에 실패했습니다. 다시 시도해 주세요.', 'danger');
+        } finally {
+            submitBtn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    });
+
+    function showAlert(msg, type) {
+        alertBox.textContent = msg;
+        alertBox.className = `alert alert-${type} py-2 px-3 small rounded-3 mb-3`;
+    }
+});
+</script>
+{% endblock %}

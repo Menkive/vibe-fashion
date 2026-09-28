@@ -1,0 +1,265 @@
+{% extends 'base.html' %}
+
+{% block title %}회원가입 | 양산시민축구단 공식 온라인 스토어{% endblock %}
+
+{% block content %}
+<section class="auth-section py-5">
+    <div class="container py-3">
+        <div class="row justify-content-center">
+            <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5">
+                <div class="card auth-card shadow-lg border-0">
+                    <div class="card-body p-4 p-sm-5">
+                        <!-- 상단 로고 및 타이틀 -->
+                        <div class="text-center mb-4">
+                            <img src="{{ url_for('static', filename='images/yangsan-fc-symbol.png') }}"
+                                 alt="양산시민축구단 심볼 로고"
+                                 class="auth-brand-logo mb-3">
+                            <h3 class="fw-bold text-dark mb-1">양산시민축구단 회원가입</h3>
+                            <p class="text-muted small">공식 스토어 회원이 되시면 다양한 구단 혜택을 받으실 수 있습니다</p>
+                        </div>
+
+                        <!-- 알림 메시지 영역 -->
+                        <div id="auth-alert" class="alert d-none py-2 px-3 small rounded-3 mb-3" role="alert"></div>
+
+                        <!-- 회원가입 폼 -->
+                        <form id="signup-form" novalidate>
+                            <!-- 1. 이름 -->
+                            <div class="mb-3">
+                                <label for="signup-name" class="form-label small fw-semibold text-secondary">
+                                    이름 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0 text-muted">
+                                        <i class="bi bi-person"></i>
+                                    </span>
+                                    <input type="text" class="form-control border-start-0 ps-0" id="signup-name" placeholder="홍길동" required autocomplete="name">
+                                </div>
+                            </div>
+
+                            <!-- 2. 이메일 -->
+                            <div class="mb-3">
+                                <label for="signup-email" class="form-label small fw-semibold text-secondary">
+                                    이메일 주소 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0 text-muted">
+                                        <i class="bi bi-envelope"></i>
+                                    </span>
+                                    <input type="email" class="form-control border-start-0 ps-0" id="signup-email" placeholder="example@email.com" required autocomplete="email">
+                                </div>
+                                <div class="form-text small text-muted">로그인 아이디로 사용됩니다.</div>
+                            </div>
+
+                            <!-- 3. 비밀번호 -->
+                            <div class="mb-3">
+                                <label for="signup-password" class="form-label small fw-semibold text-secondary">
+                                    비밀번호 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0 text-muted">
+                                        <i class="bi bi-lock"></i>
+                                    </span>
+                                    <input type="password" class="form-control border-start-0 ps-0" id="signup-password" placeholder="최소 6자 이상" required autocomplete="new-password">
+                                    <button class="btn btn-outline-secondary border-start-0 bg-light text-muted" type="button" id="toggle-pw1-btn">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 4. 비밀번호 확인 -->
+                            <div class="mb-3">
+                                <label for="signup-password-confirm" class="form-label small fw-semibold text-secondary">
+                                    비밀번호 확인 <span class="text-danger">*</span>
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0 text-muted">
+                                        <i class="bi bi-shield-lock"></i>
+                                    </span>
+                                    <input type="password" class="form-control border-start-0 ps-0" id="signup-password-confirm" placeholder="비밀번호 재입력" required autocomplete="new-password">
+                                    <button class="btn btn-outline-secondary border-start-0 bg-light text-muted" type="button" id="toggle-pw2-btn">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 5. 휴대전화번호 -->
+                            <div class="mb-3">
+                                <label for="signup-phone" class="form-label small fw-semibold text-secondary">
+                                    휴대전화번호
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0 text-muted">
+                                        <i class="bi bi-phone"></i>
+                                    </span>
+                                    <input type="tel" class="form-control border-start-0 ps-0" id="signup-phone" placeholder="010-1234-5678" autocomplete="tel">
+                                </div>
+                            </div>
+
+                            <!-- 약관 동의 영역 -->
+                            <div class="bg-light p-3 rounded-3 mb-4 border">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="check-all">
+                                    <label class="form-check-label fw-bold small text-dark" for="check-all">
+                                        전체 약관에 동의합니다
+                                    </label>
+                                </div>
+                                <hr class="my-2 border-secondary border-opacity-25">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input term-check" type="checkbox" id="terms-agree" required>
+                                    <label class="form-check-label small text-muted" for="terms-agree">
+                                        <span class="text-danger fw-semibold">[필수]</span> 양산시민축구단 스토어 이용약관 동의
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input term-check" type="checkbox" id="privacy-agree" required>
+                                    <label class="form-check-label small text-muted" for="privacy-agree">
+                                        <span class="text-danger fw-semibold">[필수]</span> 개인정보 수집 및 이용 동의
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- 회원가입 버튼 -->
+                            <button type="submit" class="btn btn-auth-submit w-100 py-3 fw-bold mb-3" id="btn-signup-submit">
+                                <span class="spinner-border spinner-border-sm me-2 d-none" id="signup-spinner" role="status"></span>
+                                <i class="bi bi-person-check-fill me-1"></i> 회원가입
+                            </button>
+                        </form>
+
+                        <!-- 로그인 유도 링크 -->
+                        <div class="text-center pt-3 border-top border-light-subtle small text-muted">
+                            이미 회원이신가요?
+                            <a href="{{ url_for('main.login') }}" class="fw-bold text-decoration-none text-primary ms-1">
+                                로그인 <i class="bi bi-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('signup-form');
+    const alertBox = document.getElementById('auth-alert');
+    const submitBtn = document.getElementById('btn-signup-submit');
+    const spinner = document.getElementById('signup-spinner');
+
+    const pwInput = document.getElementById('signup-password');
+    const pwConfirmInput = document.getElementById('signup-password-confirm');
+    const togglePw1 = document.getElementById('toggle-pw1-btn');
+    const togglePw2 = document.getElementById('toggle-pw2-btn');
+
+    const checkAll = document.getElementById('check-all');
+    const termsAgree = document.getElementById('terms-agree');
+    const privacyAgree = document.getElementById('privacy-agree');
+    const termChecks = document.querySelectorAll('.term-check');
+
+    // 비밀번호 보이기/숨기기 토글
+    function setupPwToggle(btn, input) {
+        btn.addEventListener('click', () => {
+            const isPassword = input.getAttribute('type') === 'password';
+            input.setAttribute('type', isPassword ? 'text' : 'password');
+            btn.innerHTML = isPassword ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
+        });
+    }
+    setupPwToggle(togglePw1, pwInput);
+    setupPwToggle(togglePw2, pwConfirmInput);
+
+    // 전체 동의 체크박스 연동
+    checkAll.addEventListener('change', () => {
+        termChecks.forEach(cb => cb.checked = checkAll.checked);
+    });
+    termChecks.forEach(cb => {
+        cb.addEventListener('change', () => {
+            checkAll.checked = termsAgree.checked && privacyAgree.checked;
+        });
+    });
+
+    // 폼 제출
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        alertBox.className = 'alert d-none';
+
+        const name = document.getElementById('signup-name').value.trim();
+        const email = document.getElementById('signup-email').value.trim();
+        const password = pwInput.value;
+        const passwordConfirm = pwConfirmInput.value;
+        const phone = document.getElementById('signup-phone').value.trim();
+        const terms = termsAgree.checked;
+        const privacy = privacyAgree.checked;
+
+        // 프론트엔드 유효성 검증
+        if (!name) {
+            showAlert('이름을 입력해 주세요.', 'danger');
+            return;
+        }
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!email || !emailRegex.test(email)) {
+            showAlert('올바른 이메일 주소 형식을 입력해 주세요.', 'danger');
+            return;
+        }
+
+        if (!password || password.length < 6) {
+            showAlert('비밀번호는 최소 6자 이상이어야 합니다.', 'danger');
+            return;
+        }
+
+        if (password !== passwordConfirm) {
+            showAlert('비밀번호와 비밀번호 확인이 일치하지 않습니다.', 'danger');
+            return;
+        }
+
+        if (!terms || !privacy) {
+            showAlert('필수 이용약관 및 개인정보 처리방침에 모두 동의해 주세요.', 'danger');
+            return;
+        }
+
+        // 서버 전송
+        submitBtn.disabled = true;
+        spinner.classList.remove('d-none');
+
+        try {
+            const res = await fetch("{{ url_for('main.signup') }}", {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name,
+                    email,
+                    password,
+                    password_confirm: passwordConfirm,
+                    phone,
+                    terms,
+                    privacy
+                })
+            });
+            const data = await res.json();
+
+            if (data.success) {
+                showAlert(data.message || '회원가입이 완료되었습니다!', 'success');
+                setTimeout(() => {
+                    window.location.href = "{{ url_for('main.index') }}";
+                }, 800);
+            } else {
+                showAlert(data.message || '회원가입에 실패했습니다.', 'danger');
+            }
+        } catch (err) {
+            showAlert('서버와의 통신에 실패했습니다. 다시 시도해 주세요.', 'danger');
+        } finally {
+            submitBtn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    });
+
+    function showAlert(msg, type) {
+        alertBox.textContent = msg;
+        alertBox.className = `alert alert-${type} py-2 px-3 small rounded-3 mb-3`;
+        alertBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+});
+</script>
+{% endblock %}
