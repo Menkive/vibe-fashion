@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+
+{% block title %}2027 시즌 유니폼 디자인 팬 투표 | 양산시민축구단 공식 스토어{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- 헤더 섹션 -->
+    <div class="text-center max-w-700 mx-auto mb-5">
+        <span class="badge px-3 py-2 fw-bold mb-3" style="background-color: var(--color-secondary); color: #0A2342;">
+            <i class="bi bi-star-fill me-1"></i> FAN PARTICIPATION EVENT
+        </span>
+        <h1 class="display-5 fw-bold text-dark mb-3">2027 시즌 유니폼 디자인 팬 투표</h1>
+        <p class="lead text-muted fs-6">
+            양산시민축구단의 다음 역사를 함께 장식할 공식 유니폼을 팬 여러분의 손으로 직접 결정합니다.<br class="d-none d-md-block">
+            마음에 드는 단 하나의 디자인 시안에 소중한 한 표를 행사해 주세요!
+        </p>
+        <div class="d-inline-flex align-items-center gap-2 p-2 px-3 bg-light rounded-pill border small text-muted">
+            <i class="bi bi-person-check-fill text-primary"></i>
+            <span>현재 총 <strong id="total-votes-count" class="text-dark">{{ total_votes }}</strong>명의 서포터즈가 참여했습니다.</span>
+        </div>
+    </div>
+
+    <!-- 3개 디자인 시안 선택 카드 그리드 -->
+    <div class="row row-cols-1 row-cols-md-3 g-4 mb-5" id="candidates-container">
+        {% for c in candidates %}
+        <div class="col">
+            <div class="card h-100 vote-card shadow-sm position-relative" data-candidate-id="{{ c.id }}">
+                <div class="position-relative" style="padding-top: 100%; overflow: hidden;">
+                    <img src="{{ c.image_url }}" alt="{{ c.name }}" class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover">
+                    <span class="product-badge-tag">{{ c.badge }}</span>
+                    <span class="product-badge-authentic">{{ c.code }}</span>
+                </div>
+                <div class="card-body p-4 d-flex flex-column">
+                    <h5 class="fw-bold mb-2">{{ c.name }}</h5>
+                    <p class="small text-muted flex-grow-1 mb-3" style="line-height: 1.6;">{{ c.concept }}</p>
+
+                    <!-- 투표 진행 결과 시각화 (Progress Bar) -->
+                    <div class="mt-auto">
+                        <div class="d-flex justify-content-between align-items-baseline mb-1">
+                            <span class="small fw-bold text-dark candidate-votes-text">{{ c.votes }}표</span>
+                            <span class="h6 fw-bold text-primary mb-0 candidate-percent-text" style="color: var(--color-primary) !important;">{{ c.percentage }}%</span>
+                        </div>
+                        <div class="progress-vote-bar mb-3">
+                            <div class="progress-vote-fill candidate-progress-fill" style="width: {{ c.percentage }}%;"></div>
+                        </div>
+
+                        <!-- 선택 라디오 버튼 느낌의 디자인 선택기 -->
+                        <div class="form-check d-flex align-items-center justify-content-center p-2 rounded-3 border bg-light-subtle">
+                            <input class="form-check-input me-2 candidate-radio" type="radio" name="design_choice" id="radio-{{ c.id }}" value="{{ c.id }}">
+                            <label class="form-check-label fw-bold text-dark stretched-link" for="radio-{{ c.id }}">
+                                이 디자인 선택하기
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- 투표 완료 액션 버튼 -->
+    <div class="text-center pt-3">
+        <button id="btn-submit-vote" class="btn btn-primary btn-lg px-5 py-3 fw-bold shadow-lg" style="background-color: var(--color-primary); border-color: var(--color-primary);">
+            <i class="bi bi-check-circle-fill text-warning me-2"></i> 선택한 디자인에 투표하기
+        </button>
+        <div id="vote-alert-msg" class="mt-3 small text-muted">
+            * 1인 1회 투표 참여를 권장합니다. 결과는 실시간으로 반영됩니다.
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const cards = document.querySelectorAll('.vote-card');
+    const radios = document.querySelectorAll('.candidate-radio');
+    const submitBtn = document.getElementById('btn-submit-vote');
+    const totalCountEl = document.getElementById('total-votes-count');
+    const alertMsg = document.getElementById('vote-alert-msg');
+
+    let selectedCandidate = null;
+
+    // 이미 투표했는지 체크 (localStorage)
+    const hasVoted = localStorage.getItem('yangsan_has_voted');
+    if (hasVoted) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<i class="bi bi-patch-check-fill text-warning me-2"></i> 투표 완료되었습니다';
+        alertMsg.innerHTML = '<span class="text-success fw-bold"><i class="bi bi-check-all me-1"></i> 서포터즈님의 소중한 한 표가 이미 정상 반영되었습니다.</span>';
+    }
+
+    // 카드 클릭 시 라디오 활성화 및 선택 UI 강조
+    cards.forEach(card => {
+        card.addEventListener('click', () => {
+            if (hasVoted) return;
+            const candidateId = card.getAttribute('data-candidate-id');
+            const radio = document.getElementById(`radio-${candidateId}`);
+            if (radio) {
+                radio.checked = true;
+                selectedCandidate = candidateId;
+                updateSelectionUI(candidateId);
+            }
+        });
+    });
+
+    radios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            selectedCandidate = e.target.value;
+            updateSelectionUI(selectedCandidate);
+        });
+    });
+
+    function updateSelectionUI(id) {
+        cards.forEach(c => {
+            if (c.getAttribute('data-candidate-id') === id) {
+                c.classList.add('selected');
+            } else {
+                c.classList.remove('selected');
+            }
+        });
+    }
+
+    // 투표 제출 처리 (비동기 POST API 호출)
+    submitBtn.addEventListener('click', async () => {
+        if (!selectedCandidate) {
+            alert('투표하실 디자인 시안(Design A, B, C 중 하나)을 선택해 주세요.');
+            return;
+        }
+
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> 투표 집계 중...';
+
+        try {
+            const res = await fetch('/api/vote', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ candidate_id: selectedCandidate })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                localStorage.setItem('yangsan_has_voted', selectedCandidate);
+                totalCountEl.textContent = data.total_votes;
+
+                // 실시간 Progress Bar 및 퍼센트 갱신
+                data.results.forEach(item => {
+                    const card = document.querySelector(`.vote-card[data-candidate-id="${item.id}"]`);
+                    if (card) {
+                        const votesText = card.querySelector('.candidate-votes-text');
+                        const percentText = card.querySelector('.candidate-percent-text');
+                        const fill = card.querySelector('.candidate-progress-fill');
+
+                        if (votesText) votesText.textContent = `${item.votes}표`;
+                        if (percentText) percentText.textContent = `${item.percentage}%`;
+                        if (fill) fill.style.width = `${item.percentage}%`;
+                    }
+                });
+
+                submitBtn.innerHTML = '<i class="bi bi-patch-check-fill text-warning me-2"></i> 투표 완료되었습니다';
+                alertMsg.innerHTML = '<span class="text-success fw-bold"><i class="bi bi-check-all me-1"></i> 투표가 성공적으로 집계되었습니다. 참여해 주셔서 감사합니다!</span>';
+                CartManager.showToast('2027 시즌 유니폼 디자인 투표에 성공적으로 참여하셨습니다!');
+            } else {
+                alert(data.message || '투표 처리에 실패했습니다.');
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle-fill text-warning me-2"></i> 선택한 디자인에 투표하기';
+            }
+        } catch (err) {
+            console.error('투표 오류:', err);
+            alert('네트워크 연결 중 오류가 발생했습니다.');
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '<i class="bi bi-check-circle-fill text-warning me-2"></i> 선택한 디자인에 투표하기';
+        }
+    });
+});
+</script>
+{% endblock %}

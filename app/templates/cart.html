@@ -1,0 +1,204 @@
+{% extends 'base.html' %}
+
+{% block title %}장바구니 | 양산시민축구단 공식 스토어{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="d-flex align-items-center gap-2 mb-2">
+        <div class="gold-divider"></div>
+        <span class="text-uppercase fw-bold text-muted small" style="letter-spacing: 1.5px;">SHOPPING CART</span>
+    </div>
+    <h2 class="section-title mb-4">장바구니</h2>
+
+    <div class="row g-4" id="cart-content-row">
+        <!-- 좌측: 장바구니 아이템 리스트 -->
+        <div class="col-lg-8">
+            <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
+                <div class="card-header bg-white py-3 border-bottom d-flex justify-content-between align-items-center">
+                    <span class="fw-bold text-dark">담긴 상품 (<span id="cart-item-count">0</span>)</span>
+                    <button class="btn btn-sm btn-outline-danger" id="btn-clear-cart">
+                        <i class="bi bi-trash3 me-1"></i> 전체 삭제
+                    </button>
+                </div>
+                <div class="card-body p-0">
+                    <div id="cart-items-container">
+                        <!-- 동적으로 주입 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 빈 장바구니 안내 -->
+            <div id="empty-cart-view" class="text-center py-5 card border-0 shadow-sm rounded-4 d-none">
+                <div class="card-body py-5">
+                    <i class="bi bi-cart-x display-3 text-muted mb-3 d-block"></i>
+                    <h5 class="fw-bold text-secondary mb-2">장바구니가 비어 있습니다.</h5>
+                    <p class="text-muted small mb-4">양산시민축구단의 다양한 공식 유니폼과 굿즈를 둘러보세요!</p>
+                    <a href="{{ url_for('main.product_list') }}" class="btn btn-primary px-4 py-2 fw-semibold" style="background-color: var(--color-primary); border-color: var(--color-primary);">
+                        <i class="bi bi-bag-plus me-1"></i> 상품 보러가기
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- 우측: 주문 요약 및 결제 금액 -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm rounded-4 p-4 sticky-top" style="top: 100px;">
+                <h5 class="fw-bold mb-3 border-bottom pb-3">주문 요약</h5>
+                
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">총 상품 금액</span>
+                    <span class="fw-bold" id="summary-subtotal">0원</span>
+                </div>
+                
+                <div class="d-flex justify-content-between mb-2">
+                    <span class="text-muted">배송비</span>
+                    <span class="text-success fw-bold" id="summary-shipping">무료 (5만원 이상)</span>
+                </div>
+
+                <div class="d-flex justify-content-between mb-4 border-top pt-3">
+                    <span class="fw-bold fs-5">총 결제금액</span>
+                    <span class="fw-bold fs-4 text-primary" id="summary-total" style="color: var(--color-primary) !important;">0원</span>
+                </div>
+
+                <button class="btn btn-primary w-100 py-3 fw-bold mb-2 d-flex align-items-center justify-content-center gap-2" id="btn-checkout" style="background-color: var(--color-primary); border-color: var(--color-primary);">
+                    <i class="bi bi-credit-card-fill text-warning"></i> 주문 결제하기
+                </button>
+                <a href="{{ url_for('main.product_list') }}" class="btn btn-outline-secondary w-100 py-2 small">
+                    쇼핑 계속하기
+                </a>
+
+                <div class="mt-4 p-3 bg-light rounded-3 small text-muted">
+                    <div class="d-flex gap-2 mb-1">
+                        <i class="bi bi-info-circle text-primary"></i>
+                        <span>홈경기 당일 양산종합운동장 현장 수령 가능</span>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <i class="bi bi-shield-check text-success"></i>
+                        <span>100% 구단 공식 정품 및 안전 결제</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const container = document.getElementById('cart-items-container');
+    const emptyView = document.getElementById('empty-cart-view');
+    const contentRow = document.getElementById('cart-content-row');
+    const countEl = document.getElementById('cart-item-count');
+    const subtotalEl = document.getElementById('summary-subtotal');
+    const shippingEl = document.getElementById('summary-shipping');
+    const totalEl = document.getElementById('summary-total');
+    const clearBtn = document.getElementById('btn-clear-cart');
+    const checkoutBtn = document.getElementById('btn-checkout');
+
+    function renderCart() {
+        const items = CartManager.getItems();
+        countEl.textContent = items.length;
+
+        if (items.length === 0) {
+            container.innerHTML = '';
+            emptyView.classList.remove('d-none');
+            subtotalEl.textContent = '0원';
+            totalEl.textContent = '0원';
+            checkoutBtn.disabled = true;
+            return;
+        }
+
+        emptyView.classList.add('d-none');
+        checkoutBtn.disabled = false;
+
+        let html = '';
+        let subtotal = 0;
+
+        items.forEach((item, index) => {
+            const itemTotal = item.price * item.quantity;
+            subtotal += itemTotal;
+
+            html += `
+                <div class="p-3 border-bottom d-flex align-items-center gap-3">
+                    <img src="${item.image_url}" alt="${item.name}" class="rounded-3" style="width: 80px; height: 80px; object-fit: cover;">
+                    <div class="flex-grow-1">
+                        <div class="small text-muted mb-1">${item.category || ''}</div>
+                        <h6 class="fw-bold mb-1">${item.name}</h6>
+                        <div class="small text-secondary mb-2">선택 사이즈: <strong class="badge bg-light text-dark border">${item.size}</strong></div>
+                        <div class="fw-bold text-dark">${item.price.toLocaleString()}원</div>
+                    </div>
+                    <div class="d-flex flex-column align-items-end gap-2">
+                        <div class="input-group input-group-sm" style="width: 110px;">
+                            <button class="btn btn-outline-secondary btn-qty-dec" data-index="${index}"><i class="bi bi-dash"></i></button>
+                            <input type="text" class="form-control text-center bg-white" value="${item.quantity}" readonly>
+                            <button class="btn btn-outline-secondary btn-qty-inc" data-index="${index}"><i class="bi bi-plus"></i></button>
+                        </div>
+                        <button class="btn btn-sm btn-link text-danger p-0 text-decoration-none btn-remove-item" data-index="${index}">
+                            <i class="bi bi-x-circle me-1"></i> 삭제
+                        </button>
+                    </div>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+
+        // 배송비 계산: 50,000원 이상 무료, 미만 3,000원
+        const shipping = subtotal >= 50000 || subtotal === 0 ? 0 : 3000;
+        const total = subtotal + shipping;
+
+        subtotalEl.textContent = subtotal.toLocaleString() + '원';
+        shippingEl.textContent = shipping === 0 ? '무료 (5만원 이상)' : shipping.toLocaleString() + '원';
+        totalEl.textContent = total.toLocaleString() + '원';
+
+        // 수량 조절 버튼 바인딩
+        document.querySelectorAll('.btn-qty-inc').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(btn.getAttribute('data-index'), 10);
+                CartManager.updateQuantity(idx, items[idx].quantity + 1);
+                renderCart();
+            });
+        });
+
+        document.querySelectorAll('.btn-qty-dec').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(btn.getAttribute('data-index'), 10);
+                CartManager.updateQuantity(idx, items[idx].quantity - 1);
+                renderCart();
+            });
+        });
+
+        document.querySelectorAll('.btn-remove-item').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const idx = parseInt(btn.getAttribute('data-index'), 10);
+                if (confirm('해당 상품을 장바구니에서 삭제하시겠습니까?')) {
+                    CartManager.removeItem(idx);
+                    renderCart();
+                }
+            });
+        });
+    }
+
+    clearBtn.addEventListener('click', () => {
+        if (confirm('장바구니의 모든 상품을 비우시겠습니까?')) {
+            CartManager.clearCart();
+            renderCart();
+        }
+    });
+
+    checkoutBtn.addEventListener('click', () => {
+        const items = CartManager.getItems();
+        if (items.length === 0) {
+            alert('장바구니에 담긴 상품이 없습니다.');
+            return;
+        }
+        alert(`주문이 정상적으로 접수되었습니다!\n총 결제금액: ${totalEl.textContent}\n양산종합운동장 현장 수령 또는 안심 배송이 진행됩니다.`);
+        CartManager.clearCart();
+        renderCart();
+    });
+
+    renderCart();
+});
+</script>
+{% endblock %}

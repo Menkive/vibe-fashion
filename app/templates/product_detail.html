@@ -1,0 +1,248 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ product.name }} | 양산시민축구단 공식 스토어{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <!-- 상단 브레드크럼 -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb small">
+            <li class="breadcrumb-item"><a href="{{ url_for('main.index') }}" class="text-decoration-none">홈</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('main.product_list') }}" class="text-decoration-none">상품 목록</a></li>
+            <li class="breadcrumb-item"><a href="{{ url_for('main.product_list', cat=product.category) }}" class="text-decoration-none">{{ product.category }}</a></li>
+            <li class="breadcrumb-item active" aria-current="page">{{ product.name }}</li>
+        </ol>
+    </nav>
+
+    <!-- 상품 상세 영역 -->
+    <div class="row g-5">
+        <!-- 좌측: 대형 상품 이미지 -->
+        <div class="col-lg-6">
+            <div class="card border-0 shadow-sm overflow-hidden rounded-4">
+                <div class="position-relative" style="padding-top: 100%;">
+                    <img src="{{ product.thumbnail_url or product.image_url }}" class="position-absolute top-0 start-0 w-100 h-100 object-fit-cover" alt="{{ product.name }}" id="main-product-image">
+                    <span class="product-badge-tag">{{ product.badge or 'OFFICIAL' }}</span>
+                    <span class="product-badge-authentic">100% AUTHENTIC</span>
+                </div>
+            </div>
+            <div class="p-3 mt-3 bg-light-subtle rounded-3 d-flex align-items-center justify-content-around text-muted small">
+                <span><i class="bi bi-truck me-1 text-primary"></i> 전 상품 안심배송</span>
+                <span><i class="bi bi-shield-check me-1 text-primary"></i> 구단 공식 인증</span>
+                <span><i class="bi bi-arrow-repeat me-1 text-primary"></i> 7일 이내 무료교환/반품</span>
+            </div>
+        </div>
+
+        <!-- 우측: 상품 정보 및 옵션 선택 -->
+        <div class="col-lg-6 d-flex flex-column">
+            <div class="mb-2">
+                <span class="badge bg-secondary-subtle text-secondary-emphasis px-3 py-1 fw-bold">{{ product.category }}</span>
+                <span class="badge bg-dark-subtle text-dark-emphasis px-3 py-1 ms-1">재고: {{ product.stock }}개 남음</span>
+            </div>
+            
+            <h1 class="h2 fw-bold text-dark mb-3">{{ product.name }}</h1>
+            
+            <div class="d-flex align-items-baseline gap-3 mb-4 pb-3 border-bottom">
+                <span class="h2 fw-bold text-primary mb-0" style="color: var(--color-primary) !important;">
+                    {{ product.price|currency }}
+                </span>
+                {% if product.original_price %}
+                <span class="text-muted text-decoration-line-through fs-5">
+                    {{ product.original_price|currency }}
+                </span>
+                {% if product.price is number and product.original_price is number and product.original_price > product.price %}
+                <span class="badge bg-danger">
+                    {{ ((1 - (product.price / product.original_price)) * 100)|round|int }}% 할인
+                </span>
+                {% endif %}
+                {% endif %}
+            </div>
+
+            <p class="text-muted mb-4 lead fs-6" style="line-height: 1.7;">
+                {{ product.description }}
+            </p>
+
+            <!-- 옵션 선택 폼 -->
+            <form id="product-order-form" class="mt-auto">
+                <!-- 사이즈 선택 -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold d-flex justify-content-between">
+                        <span>사이즈 선택 <span class="text-danger">*</span></span>
+                        <small class="text-muted">{% if '유니폼' in product.category %}정사이즈 권장{% else %}단일 옵션{% endif %}</small>
+                    </label>
+                    <div class="d-flex flex-wrap gap-2" id="size-options-container">
+                        {% for size in product.sizes %}
+                        <button type="button" class="btn btn-outline-dark size-btn px-4 py-2" data-size="{{ size }}">
+                            {{ size }}
+                        </button>
+                        {% endfor %}
+                    </div>
+                    <input type="hidden" id="selected-size" name="size" value="">
+                    <div id="size-alert" class="text-danger small mt-2 d-none">
+                        <i class="bi bi-exclamation-circle me-1"></i> 사이즈를 반드시 선택해야 장바구니에 담을 수 있습니다.
+                    </div>
+                </div>
+
+                <!-- 수량 선택 -->
+                <div class="mb-4">
+                    <label class="form-label fw-bold">수량</label>
+                    <div class="input-group" style="width: 140px;">
+                        <button class="btn btn-outline-secondary" type="button" id="btn-qty-minus"><i class="bi bi-dash"></i></button>
+                        <input type="number" id="input-quantity" class="form-control text-center" value="1" min="1" max="{{ product.stock }}">
+                        <button class="btn btn-outline-secondary" type="button" id="btn-qty-plus"><i class="bi bi-plus"></i></button>
+                    </div>
+                </div>
+
+                <!-- 합계 금액 -->
+                <div class="p-3 bg-light rounded-3 mb-4 d-flex justify-content-between align-items-center">
+                    <span class="fw-semibold text-muted">총 상품 금액</span>
+                    <span class="h4 fw-bold text-dark mb-0" id="total-price-display">
+                        {{ product.price|currency }}
+                    </span>
+                </div>
+
+                <!-- 액션 버튼 -->
+                <div class="row g-2">
+                    <div class="col-6">
+                        <button type="button" class="btn btn-outline-primary w-100 py-3 fw-bold d-flex align-items-center justify-content-center gap-2" id="btn-add-cart" style="border-color: var(--color-primary); color: var(--color-primary);">
+                            <i class="bi bi-cart-plus fs-5"></i> 장바구니 담기
+                        </button>
+                    </div>
+                    <div class="col-6">
+                        <button type="button" class="btn btn-primary w-100 py-3 fw-bold d-flex align-items-center justify-content-center gap-2" id="btn-buy-now" style="background-color: var(--color-primary); border-color: var(--color-primary);">
+                            <i class="bi bi-lightning-charge-fill text-warning fs-5"></i> 바로 구매하기
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 하단 연관 상품 추천 -->
+    <div class="mt-5 pt-5 border-top">
+        <h4 class="fw-bold mb-4">함께 구매하면 좋은 공식 아이템</h4>
+        <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4">
+            {% for rel in related_products %}
+            <div class="col">
+                <div class="card h-100 product-card shadow-sm">
+                    <a href="{{ url_for('main.product_detail', product_id=rel.id) }}" class="text-decoration-none">
+                        <div class="product-image-wrapper">
+                            <img src="{{ rel.thumbnail_url or rel.image_url }}" class="product-img" alt="{{ rel.name }}" loading="lazy">
+                        </div>
+                    </a>
+                    <div class="card-body d-flex flex-column p-3">
+                        <span class="product-category-text mb-1">{{ rel.category }}</span>
+                        <h6 class="product-card-title">
+                            <a href="{{ url_for('main.product_detail', product_id=rel.id) }}" class="text-decoration-none text-reset">
+                                {{ rel.name }}
+                            </a>
+                        </h6>
+                        <div class="mt-auto pt-2">
+                            <span class="product-price">
+                                {{ rel.price|currency }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const productData = {
+        id: {{ product.id | tojson }},
+        name: {{ product.name | tojson }},
+        price: {{ product.price }},
+        image_url: {{ (product.thumbnail_url or product.image_url) | tojson }},
+        category: {{ product.category | tojson }}
+    };
+
+    const sizeButtons = document.querySelectorAll('.size-btn');
+    const selectedSizeInput = document.getElementById('selected-size');
+    const sizeAlert = document.getElementById('size-alert');
+    const qtyInput = document.getElementById('input-quantity');
+    const plusBtn = document.getElementById('btn-qty-plus');
+    const minusBtn = document.getElementById('btn-qty-minus');
+    const totalPriceDisplay = document.getElementById('total-price-display');
+    const addCartBtn = document.getElementById('btn-add-cart');
+    const buyNowBtn = document.getElementById('btn-buy-now');
+
+    // 단일 사이즈 옵션(Free)인 경우 자동 선택 처리
+    if (sizeButtons.length === 1) {
+        sizeButtons[0].classList.add('active', 'btn-dark');
+        sizeButtons[0].classList.remove('btn-outline-dark');
+        selectedSizeInput.value = sizeButtons[0].getAttribute('data-size');
+    }
+
+    // 사이즈 선택 이벤트
+    sizeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            sizeButtons.forEach(b => {
+                b.classList.remove('active', 'btn-dark');
+                b.classList.add('btn-outline-dark');
+            });
+            btn.classList.add('active', 'btn-dark');
+            btn.classList.remove('btn-outline-dark');
+            selectedSizeInput.value = btn.getAttribute('data-size');
+            sizeAlert.classList.add('d-none');
+        });
+    });
+
+    // 수량 변경 및 총액 갱신
+    function updateTotalPrice() {
+        const qty = parseInt(qtyInput.value, 10) || 1;
+        const total = productData.price * qty;
+        totalPriceDisplay.textContent = total.toLocaleString() + '원';
+    }
+
+    plusBtn.addEventListener('click', () => {
+        qtyInput.value = parseInt(qtyInput.value, 10) + 1;
+        updateTotalPrice();
+    });
+
+    minusBtn.addEventListener('click', () => {
+        const current = parseInt(qtyInput.value, 10);
+        if (current > 1) {
+            qtyInput.value = current - 1;
+            updateTotalPrice();
+        }
+    });
+
+    qtyInput.addEventListener('change', () => {
+        if (parseInt(qtyInput.value, 10) < 1 || isNaN(qtyInput.value)) {
+            qtyInput.value = 1;
+        }
+        updateTotalPrice();
+    });
+
+    // 장바구니 담기 (사이즈 미선택 시 추가 불가 검증)
+    addCartBtn.addEventListener('click', () => {
+        const size = selectedSizeInput.value;
+        if (!size) {
+            sizeAlert.classList.remove('d-none');
+            sizeAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        const qty = parseInt(qtyInput.value, 10) || 1;
+        CartManager.addItem(productData, size, qty);
+    });
+
+    // 바로 구매하기
+    buyNowBtn.addEventListener('click', () => {
+        const size = selectedSizeInput.value;
+        if (!size) {
+            sizeAlert.classList.remove('d-none');
+            sizeAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+        }
+        const qty = parseInt(qtyInput.value, 10) || 1;
+        CartManager.addItem(productData, size, qty);
+        window.location.href = "{{ url_for('main.cart') }}";
+    });
+});
+</script>
+{% endblock %}

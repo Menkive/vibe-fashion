@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}양산시민축구단 공식 스토어 (YANGSAN FC OFFICIAL STORE){% endblock %}</title>
+
+    <!-- Bootstrap 5.3 CDN CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <!-- Bootstrap 아이콘 CDN -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- 구단 공식 커스텀 스타일시트 -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="d-flex flex-column min-vh-100">
+
+    <!-- 상단 매치 공지 티커 바 -->
+    <div class="match-ticker-bar">
+        <div class="container d-flex justify-content-between align-items-center">
+            <div class="d-flex align-items-center gap-2">
+                <span class="badge-next-match">NEXT MATCH</span>
+                <span>2026 K리그 홈경기 | 양산시민축구단 vs 부산교통공사 (양산종합운동장)</span>
+            </div>
+            <div class="d-none d-md-flex align-items-center gap-3">
+                <span class="text-white-50"><i class="bi bi-truck me-1"></i> 5만원 이상 전 상품 무료배송</span>
+                <span class="text-white-50">|</span>
+                <span class="text-white-50"><i class="bi bi-shield-check me-1"></i> 100% 구단 공식 정품 보증</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 상단 네비게이션 바 -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
+        <div class="container">
+            <a class="navbar-brand" href="{{ url_for('main.index') }}">
+                <span class="brand-emblem-badge"><i class="bi bi-shield-fill-check"></i></span>
+                <span>YANGSAN FC <span style="color: var(--color-secondary); font-size: 0.9em;">STORE</span></span>
+            </a>
+            <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav me-auto mb-2 mb-lg-0 ms-lg-4">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.index') }}">홈</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.product_list') }}">전체 상품</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.product_list', cat='유니폼') }}">어센틱 유니폼</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.product_list', cat='액세서리') }}">굿즈/액세서리</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link text-warning fw-bold" href="{{ url_for('main.vote_page') }}">
+                            <i class="bi bi-patch-check-fill me-1"></i> 2027 유니폼 팬투표
+                        </a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center gap-3">
+                    <!-- 다크모드 토글 버튼 -->
+                    <button class="btn btn-sm btn-outline-light border-0 px-2" id="theme-toggle-btn" title="다크/라이트 모드 전환">
+                        <i id="theme-toggle-icon" class="bi bi-moon-stars-fill text-white-50 fs-5"></i>
+                    </button>
+                    <!-- 장바구니 버튼 -->
+                    <a href="{{ url_for('main.cart') }}" class="btn btn-cart position-relative">
+                        <i class="bi bi-cart3 me-1"></i> 장바구니
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill cart-count bg-danger" style="display:none;">
+                            0
+                        </span>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- 본문 콘텐츠 영역 -->
+    <main class="flex-grow-1">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- 하단 푸터 -->
+    <footer class="bg-dark text-white">
+        <div class="container">
+            <div class="row g-4 mb-4">
+                <div class="col-lg-4 col-md-6">
+                    <div class="d-flex align-items-center mb-3">
+                        <span class="brand-emblem-badge"><i class="bi bi-shield-fill-check"></i></span>
+                        <h5 class="footer-title mb-0">양산시민축구단 공식 MD 스토어</h5>
+                    </div>
+                    <p class="small text-muted mb-3">
+                        양산시민축구단과 팬들이 하나되는 공식 온라인 쇼핑몰입니다. 판매 수익금의 일부는 구단 유소년 축구 발전 기금으로 사용됩니다.
+                    </p>
+                    <div class="d-flex gap-3 text-secondary fs-5">
+                        <a href="#" class="text-white-50"><i class="bi bi-instagram"></i></a>
+                        <a href="#" class="text-white-50"><i class="bi bi-youtube"></i></a>
+                        <a href="#" class="text-white-50"><i class="bi bi-facebook"></i></a>
+                    </div>
+                </div>
+                <div class="col-lg-2 col-6">
+                    <h6 class="footer-title">카테고리</h6>
+                    <ul class="list-unstyled small d-flex flex-column gap-2">
+                        <li><a href="#products">2026 어센틱</a></li>
+                        <li><a href="#products">트레이닝 킷</a></li>
+                        <li><a href="#products">응원 머플러/깃발</a></li>
+                        <li><a href="#products">라이프스타일</a></li>
+                    </ul>
+                </div>
+                <div class="col-lg-3 col-6">
+                    <h6 class="footer-title">고객센터 & 안내</h6>
+                    <ul class="list-unstyled small d-flex flex-column gap-2 text-muted">
+                        <li><span class="text-white fw-bold">1588-0000</span> (평일 10:00 ~ 17:00)</li>
+                        <li>점심시간 12:00 ~ 13:00 / 주말·공휴일 휴무</li>
+                        <li>홈경기 당일 오프라인 MD샵 운영</li>
+                    </ul>
+                </div>
+                <div class="col-lg-3 col-md-6">
+                    <h6 class="footer-title">구단 홈구장</h6>
+                    <p class="small text-muted mb-2">경상남도 양산시 양산대로 849 (양산종합운동장)</p>
+                    <div class="p-2 rounded bg-opacity-10 bg-light small text-light border border-secondary border-opacity-25">
+                        <i class="bi bi-geo-alt-fill text-warning me-1"></i> 경기 당일 현장 수령 가능 (게이트 1 MD 부스)
+                    </div>
+                </div>
+            </div>
+            <div class="pt-3 border-top border-secondary border-opacity-25 text-center text-muted small">
+                <p class="mb-1 text-white-50">© 2026 YANGSAN CITIZEN FOOTBALL CLUB. All rights reserved.</p>
+                <small class="text-secondary">Official Licensed Merchandise Store | Powered by Flask & Bootstrap 5.3</small>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Bootstrap 5.3 CDN JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+    <!-- 장바구니 및 전역 유틸 스크립트 -->
+    <script src="{{ url_for('static', filename='js/store.js') }}"></script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
