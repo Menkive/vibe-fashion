@@ -15,6 +15,22 @@ auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 SITE_URL = os.getenv("SITE_URL", "http://localhost:5000")
 
 
+def get_current_base_url():
+    """
+    현재 요청의 올바른 Base URL 반환 (HTTPS 역방향 프록시 및 Azure 호스팅 환경 대응)
+    """
+    if request.host:
+        # Azure App Service 또는 리버스 프록시 뒤에서는 X-Forwarded-Proto가 https로 들어오거나 호스트가 azurewebsites.net임
+        scheme = request.headers.get('X-Forwarded-Proto')
+        if not scheme:
+            if 'azurewebsites.net' in request.host:
+                scheme = 'https'
+            else:
+                scheme = request.scheme or 'http'
+        return f"{scheme}://{request.host}".rstrip('/')
+    return SITE_URL.rstrip('/')
+
+
 def login_required(f):
     """
     로그인 필수 데코레이터:
@@ -227,9 +243,7 @@ def kakao_login():
                      (이 방식은 Supabase의 기본 account_email 강제 요구로 인한 개인앱 KOE205 에러를 완벽히 우회합니다.)
     2순위: Supabase Auth 내장 Provider ('kakao')
     """
-    base_url = SITE_URL
-    if request.host_url:
-        base_url = request.host_url.rstrip('/')
+    base_url = get_current_base_url()
     callback_url = f"{base_url}/auth/callback"
 
     # 카카오 REST API 키 (환경변수 또는 Supabase 프로젝트에 등록된 클라이언트 키)
@@ -280,9 +294,7 @@ def google_login():
     Google OAuth 소셜 로그인 시작:
     Supabase Auth 내장 Provider ('google')를 호출하여 Google OAuth 동의 화면으로 리다이렉트합니다.
     """
-    base_url = SITE_URL
-    if request.host_url:
-        base_url = request.host_url.rstrip('/')
+    base_url = get_current_base_url()
     callback_url = f"{base_url}/auth/callback"
 
     supabase = get_supabase_client()
@@ -335,9 +347,7 @@ def oauth_callback():
         logger.warning("OAuth 콜백에 code 파라미터가 없습니다.")
         return redirect(url_for('main.login', error='oauth_failed'))
 
-    base_url = SITE_URL
-    if request.host_url:
-        base_url = request.host_url.rstrip('/')
+    base_url = get_current_base_url()
     callback_url = f"{base_url}/auth/callback"
 
     supabase = get_supabase_client()
