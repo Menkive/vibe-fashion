@@ -20,21 +20,57 @@
             <div class="col-12 col-md-4">
                 <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
                     <div class="card-header bg-dark text-white text-center py-4">
+                        {% if session.get('user') and session.user.get('avatar_url') %}
+                        <img src="{{ session.user.avatar_url }}" alt="프로필 이미지" class="rounded-circle mb-2 border border-2 border-warning" style="width: 72px; height: 72px; object-fit: cover;">
+                        {% else %}
                         <div class="rounded-circle bg-warning text-dark d-inline-flex justify-content-center align-items-center mb-2" style="width: 72px; height: 72px; font-size: 28px;">
                             <i class="bi bi-person-fill"></i>
                         </div>
-                        <h5 class="fw-bold mb-1">{{ session.get('email') }}</h5>
+                        {% endif %}
+                        <h5 class="fw-bold mb-1">{{ (session.get('user') and session.user.get('name')) or session.get('email') }}</h5>
+                        {% if session.get('user') and session.user.get('provider') == 'kakao' %}
+                        <span class="badge" style="background-color: #FEE500; color: #191919; font-weight: 700;">
+                            <i class="bi bi-chat-fill me-1"></i> 카카오 연동 회원
+                        </span>
+                        {% elif session.get('user') and session.user.get('provider') == 'naver' %}
+                        <span class="badge" style="background-color: #03C75A; color: #ffffff; font-weight: 700;">
+                            <i class="bi bi-check-circle-fill me-1"></i> 네이버 연동 회원
+                        </span>
+                        {% elif session.get('user') and session.user.get('provider') == 'google' %}
+                        <span class="badge bg-light text-dark border fw-bold">
+                            <i class="bi bi-google text-danger me-1"></i> Google 연동 회원
+                        </span>
+                        {% else %}
                         <span class="badge bg-success">공식 서포터즈 회원</span>
+                        {% endif %}
                     </div>
                     <div class="card-body p-4">
                         <ul class="list-unstyled mb-4">
                             <li class="mb-3 d-flex justify-content-between align-items-center">
+                                <span class="text-muted small">이름/닉네임</span>
+                                <span class="fw-semibold">{{ (session.get('user') and session.user.get('name')) or '회원' }}</span>
+                            </li>
+                            <li class="mb-3 d-flex justify-content-between align-items-center">
                                 <span class="text-muted small">이메일</span>
-                                <span class="fw-semibold">{{ session.get('email') }}</span>
+                                <span class="fw-semibold">{{ (session.get('user') and session.user.get('email')) or session.get('email') }}</span>
+                            </li>
+                            <li class="mb-3 d-flex justify-content-between align-items-center">
+                                <span class="text-muted small">로그인 수단</span>
+                                <span class="badge bg-light text-dark">
+                                    {% if session.get('user') and session.user.get('provider') == 'kakao' %}
+                                        카카오 계정
+                                    {% elif session.get('user') and session.user.get('provider') == 'naver' %}
+                                        네이버 계정
+                                    {% elif session.get('user') and session.user.get('provider') == 'google' %}
+                                        Google 계정
+                                    {% else %}
+                                        이메일/비밀번호
+                                    {% endif %}
+                                </span>
                             </li>
                             <li class="mb-3 d-flex justify-content-between align-items-center">
                                 <span class="text-muted small">회원 식별번호</span>
-                                <span class="badge bg-light text-dark font-monospace text-truncate" style="max-width: 150px;">{{ session.get('user_id') }}</span>
+                                <span class="badge bg-light text-dark font-monospace text-truncate" style="max-width: 150px;">{{ (session.get('user') and session.user.get('id')) or session.get('user_id') }}</span>
                             </li>
                         </ul>
                         <div class="d-grid gap-2">

@@ -73,7 +73,19 @@
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end shadow border-0" style="background-color: var(--color-primary-dark); border: 1px solid rgba(212, 175, 55, 0.3) !important;">
                             <li><span class="dropdown-item-text text-white-50 small"><i class="bi bi-envelope me-1"></i>{{ session.user.email }}</span></li>
+                            {% if session.user.provider == 'kakao' %}
+                            <li><span class="dropdown-item-text text-warning small"><i class="bi bi-chat-fill me-1"></i>카카오 로그인 계정</span></li>
+                            {% elif session.user.provider == 'naver' %}
+                            <li><span class="dropdown-item-text text-success small"><i class="bi bi-check-circle-fill me-1"></i>네이버 로그인 계정</span></li>
+                            {% elif session.user.provider == 'google' %}
+                            <li><span class="dropdown-item-text text-info small"><i class="bi bi-google me-1"></i>Google 로그인 계정</span></li>
+                            {% endif %}
                             <li><hr class="dropdown-divider border-secondary border-opacity-25"></li>
+                            <li>
+                                <a class="dropdown-item text-white d-flex align-items-center gap-2 py-2" href="{{ url_for('main.mypage') }}">
+                                    <i class="bi bi-person-circle text-warning"></i> 마이페이지
+                                </a>
+                            </li>
                             <li>
                                 <a class="dropdown-item text-white d-flex align-items-center gap-2 py-2" href="{{ url_for('main.logout') }}">
                                     <i class="bi bi-box-arrow-right text-warning"></i> 로그아웃

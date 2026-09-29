@@ -215,6 +215,397 @@ def resend_confirmation():
 
 
 # ==============================================================================
+# 3-1. 카카오 소셜 로그인 (GET /auth/kakao, GET /auth/callback)
+# ==============================================================================
+
+@auth_bp.route('/kakao')
+def kakao_login():
+    """
+    카카오 OAuth 소셜 로그인 시작:
+    1순위: Supabase Auth 내장 Provider ('kakao') 사용
+    2순위: 카카오 REST API Key가 .env에 설정된 경우 카카오 공식 인가 페이지로 직접 리다이렉트
+    """
+    base_url = SITE_URL
+    if request.host_url:
+        base_url = request.host_url.rstrip('/')
+    callback_url = f"{base_url}/auth/callback"
+
+    supabase = get_supabase_client()
+    if supabase:
+        try:
+            res = supabase.auth.sign_in_with_oauth({
+                "provider": "kakao",
+                "options": {
+                    "redirect_to": callback_url
+                }
+            })
+            if res and res.url:
+                # PKCE flow를 위한 code_verifier를 Flask 세션에 백업
+                try:
+                    code_verifier = supabase.auth._storage.get_item(f"{supabase.auth._storage_key}-code-verifier")
+                    if code_verifier:
+                        session['oauth_code_verifier'] = code_verifier
+                except Exception as ve:
+                    logger.debug(f"code_verifier 백업 알림: {ve}")
+
+                return redirect(res.url)
+        except Exception as e:
+            logger.warning(f"Supabase Kakao OAuth URL 생성 예외 (대체 방식 시도): {e}")
+
+    # 대체 방식: 카카오 REST API 직접 인가 (KAKAO_CLIENT_ID / KAKAO_REST_API_KEY 환경변수 설정 시)
+    kakao_client_id = os.getenv("KAKAO_CLIENT_ID") or os.getenv("KAKAO_REST_API_KEY")
+    if kakao_client_id:
+        kakao_auth_url = (
+            f"https://kauth.kakao.com/oauth/authorize"
+            f"?client_id={kakao_client_id}"
+            f"&redirect_uri={callback_url}"
+            f"&response_type=code"
+        )
+        return redirect(kakao_auth_url)
+
+    # 환경변수 미설정 시 사용자 친화적인 안내
+    logger.error("카카오 로그인 설정(Supabase Kakao Provider 또는 KAKAO_CLIENT_ID)이 필요합니다.")
+    return redirect(url_for('main.login', error='kakao_not_configured'))
+
+
+@auth_bp.route('/google')
+def google_login():
+    """
+    Google OAuth 소셜 로그인 시작:
+    Supabase Auth 내장 Provider ('google')를 호출하여 Google OAuth 동의 화면으로 리다이렉트합니다.
+    """
+    base_url = SITE_URL
+    if request.host_url:
+        base_url = request.host_url.rstrip('/')
+    callback_url = f"{base_url}/auth/callback"
+
+    supabase = get_supabase_client()
+    if not supabase:
+        logger.error("Supabase 클라이언트를 초기화할 수 없습니다.")
+        return redirect(url_for('main.login', error='google_failed'))
+
+    try:
+        res = supabase.auth.sign_in_with_oauth({
+            "provider": "google",
+            "options": {
+                "redirect_to": callback_url
+            }
+        })
+        if res and res.url:
+            # PKCE flow를 위한 code_verifier를 Flask 세션에 백업
+            try:
+                code_verifier = supabase.auth._storage.get_item(f"{supabase.auth._storage_key}-code-verifier")
+                if code_verifier:
+                    session['oauth_code_verifier'] = code_verifier
+            except Exception as ve:
+                logger.debug(f"code_verifier 백업 알림: {ve}")
+
+            return redirect(res.url)
+        else:
+            logger.error("Supabase Google OAuth URL 생성 실패 (응답 URL 없음)")
+            return redirect(url_for('main.login', error='google_not_configured'))
+    except Exception as e:
+        logger.error(f"Supabase Google OAuth URL 생성 오류: {e}")
+        return redirect(url_for('main.login', error='google_failed'))
+
+
+@auth_bp.route('/callback', methods=['GET'])
+def oauth_callback():
+    """
+    Supabase OAuth 공통 콜백 처리 라우트 (카카오 / Google):
+    OAuth 로그인 인증 후 code를 교환하여 세션을 생성하고 로그인 상태로 전환합니다.
+    """
+    # 사용자가 OAuth 로그인 화면에서 취소하거나 에러가 반환된 경우
+    error = request.args.get('error')
+    error_description = request.args.get('error_description')
+    if error:
+        logger.warning(f"OAuth 로그인 취소/실패: {error} ({error_description})")
+        if 'access_denied' in str(error).lower() or 'cancel' in str(error).lower():
+            return redirect(url_for('main.login', error='oauth_cancelled'))
+        return redirect(url_for('main.login', error='oauth_failed'))
+
+    code = request.args.get('code')
+    if not code:
+        logger.warning("OAuth 콜백에 code 파라미터가 없습니다.")
+        return redirect(url_for('main.login', error='oauth_failed'))
+
+    base_url = SITE_URL
+    if request.host_url:
+        base_url = request.host_url.rstrip('/')
+    callback_url = f"{base_url}/auth/callback"
+
+    supabase = get_supabase_client()
+    session_established = False
+
+    # 1. Supabase PKCE Code Exchange 시도 (Google 및 Supabase 연동 카카오)
+    if supabase:
+        try:
+            code_verifier = session.pop('oauth_code_verifier', None)
+            exchange_params = {
+                "auth_code": code,
+                "redirect_to": callback_url
+            }
+            if code_verifier:
+                exchange_params["code_verifier"] = code_verifier
+
+            auth_res = supabase.auth.exchange_code_for_session(exchange_params)
+            if auth_res and auth_res.user:
+                user = auth_res.user
+                user_metadata = getattr(user, 'user_metadata', {}) or {}
+                app_metadata = getattr(user, 'app_metadata', {}) or {}
+                provider = app_metadata.get('provider') or 'oauth'
+
+                user_name = (
+                    user_metadata.get('full_name') or
+                    user_metadata.get('name') or
+                    user_metadata.get('nickname') or
+                    (user.email.split('@')[0] if user.email else f"{provider}회원")
+                )
+
+                session['user_id'] = str(user.id)
+                session['email'] = user.email or f"{provider}_{user.id[:8]}@yangsanfc.local"
+                session['user'] = {
+                    "id": str(user.id),
+                    "email": session['email'],
+                    "name": user_name,
+                    "phone": user_metadata.get('phone', ''),
+                    "provider": provider,
+                    "avatar_url": user_metadata.get('avatar_url') or user_metadata.get('picture', '')
+                }
+                if auth_res.session:
+                    session['access_token'] = auth_res.session.access_token
+                    if getattr(auth_res.session, 'refresh_token', None):
+                        session['refresh_token'] = auth_res.session.refresh_token
+
+                session_established = True
+                logger.info(f"Supabase OAuth 로그인 성공 ({provider}): {user_name} ({user.id})")
+        except Exception as se:
+            logger.warning(f"Supabase exchange_code_for_session 실패: {se}")
+
+    # 2. Supabase 내장 교환 실패 시: 카카오 REST 직접 연동 토큰 및 프로필 조회 폴백
+    if not session_established:
+        kakao_client_id = os.getenv("KAKAO_CLIENT_ID") or os.getenv("KAKAO_REST_API_KEY")
+        kakao_client_secret = os.getenv("KAKAO_CLIENT_SECRET")
+
+        if kakao_client_id:
+            try:
+                import httpx
+                # 토큰 발급 요청
+                token_data = {
+                    "grant_type": "authorization_code",
+                    "client_id": kakao_client_id,
+                    "redirect_uri": callback_url,
+                    "code": code
+                }
+                if kakao_client_secret:
+                    token_data["client_secret"] = kakao_client_secret
+
+                token_res = httpx.post(
+                    "https://kauth.kakao.com/oauth/token",
+                    data=token_data,
+                    headers={"Content-Type": "application/x-www-form-urlencoded;charset=utf-8"},
+                    timeout=10.0
+                )
+
+                if token_res.status_code == 200:
+                    tokens = token_res.json()
+                    kakao_access_token = tokens.get("access_token")
+
+                    # 카카오 사용자 정보 조회
+                    user_res = httpx.get(
+                        "https://kapi.kakao.com/v2/user/me",
+                        headers={"Authorization": f"Bearer {kakao_access_token}"},
+                        timeout=10.0
+                    )
+
+                    if user_res.status_code == 200:
+                        kakao_user = user_res.json()
+                        kakao_id = str(kakao_user.get("id"))
+                        kakao_account = kakao_user.get("kakao_account", {})
+                        profile = kakao_account.get("profile", {})
+
+                        nickname = profile.get("nickname") or f"양산팬_{kakao_id[-4:]}"
+                        email = kakao_account.get("email") or f"kakao_{kakao_id}@yangsanfc.local"
+                        avatar_url = profile.get("profile_image_url") or profile.get("thumbnail_image_url") or ""
+
+                        # 세션에 카카오 회원 로그인 상태 등록
+                        user_uuid = f"kakao-{kakao_id}"
+                        session['user_id'] = user_uuid
+                        session['email'] = email
+                        session['user'] = {
+                            "id": user_uuid,
+                            "email": email,
+                            "name": nickname,
+                            "phone": "",
+                            "provider": "kakao",
+                            "avatar_url": avatar_url
+                        }
+                        session['kakao_access_token'] = kakao_access_token
+                        session_established = True
+                        logger.info(f"카카오 직접 토큰 인증 로그인 성공: {nickname} ({user_uuid})")
+                    else:
+                        logger.error(f"카카오 사용자 정보 요청 실패: {user_res.text}")
+                else:
+                    logger.error(f"카카오 토큰 발급 요청 실패: {token_res.text}")
+            except Exception as ke:
+                logger.error(f"카카오 직접 인증 처리 중 오류: {ke}")
+
+    if session_established:
+        return redirect(url_for('main.index'))
+    else:
+        return redirect(url_for('main.login', error='kakao_failed'))
+
+
+# ==============================================================================
+# 3-2. 네이버 소셜 로그인 (GET /auth/naver & GET /auth/naver/callback)
+# ==============================================================================
+
+@auth_bp.route('/naver', methods=['GET'])
+def naver_login():
+    """
+    네이버 OAuth 인가 요청 시작 라우트:
+    CSRF 방지를 위한 state 토큰을 생성하고 네이버 인가 페이지로 리다이렉트합니다.
+    """
+    import secrets
+    import urllib.parse
+
+    client_id = os.getenv("NAVER_CLIENT_ID")
+    if not client_id:
+        logger.error("네이버 로그인 설정(NAVER_CLIENT_ID)이 필요합니다.")
+        return redirect(url_for('main.login', error='naver_not_configured'))
+
+    base_url = SITE_URL
+    if request.host_url:
+        base_url = request.host_url.rstrip('/')
+    callback_url = f"{base_url}/auth/naver/callback"
+
+    # CSRF 방어용 state 난수 생성 및 세션 저장
+    state = secrets.token_urlsafe(16)
+    session['naver_oauth_state'] = state
+
+    naver_auth_params = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": callback_url,
+        "state": state
+    }
+    naver_auth_url = f"https://nid.naver.com/oauth2.0/authorize?{urllib.parse.urlencode(naver_auth_params)}"
+    return redirect(naver_auth_url)
+
+
+@auth_bp.route('/naver/callback', methods=['GET'])
+def naver_callback():
+    """
+    네이버 OAuth 콜백 처리 라우트:
+    인가 코드 및 state 검증 후 토큰을 교환하고 프로필 정보를 세션에 등록합니다.
+    """
+    # 사용자가 인증을 취소하거나 오류가 반환된 경우
+    error = request.args.get('error')
+    error_description = request.args.get('error_description')
+    if error:
+        logger.warning(f"네이버 로그인 취소/실패: {error} ({error_description})")
+        return redirect(url_for('main.login', error='naver_cancelled'))
+
+    code = request.args.get('code')
+    state = request.args.get('state')
+
+    # CSRF state 검증
+    saved_state = session.pop('naver_oauth_state', None)
+    if not state or state != saved_state:
+        logger.warning("네이버 OAuth state 불일치 (CSRF 가능성 또는 만료)")
+        return redirect(url_for('main.login', error='naver_state_invalid'))
+
+    if not code:
+        logger.warning("네이버 콜백에 code 파라미터가 없습니다.")
+        return redirect(url_for('main.login', error='naver_failed'))
+
+    client_id = os.getenv("NAVER_CLIENT_ID")
+    client_secret = os.getenv("NAVER_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        logger.error("네이버 Client ID 또는 Client Secret 환경변수가 설정되지 않았습니다.")
+        return redirect(url_for('main.login', error='naver_not_configured'))
+
+    base_url = SITE_URL
+    if request.host_url:
+        base_url = request.host_url.rstrip('/')
+    callback_url = f"{base_url}/auth/naver/callback"
+
+    try:
+        import httpx
+        # 1. 네이버 접근 토큰(Access Token) 발급 요청
+        token_params = {
+            "grant_type": "authorization_code",
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "code": code,
+            "state": state,
+            "redirect_uri": callback_url
+        }
+
+        token_res = httpx.post(
+            "https://nid.naver.com/oauth2.0/token",
+            data=token_params,
+            headers={"Content-Type": "application/x-www-form-urlencoded;charset=utf-8"},
+            timeout=10.0
+        )
+
+        if token_res.status_code != 200:
+            logger.error(f"네이버 토큰 요청 실패: {token_res.text}")
+            return redirect(url_for('main.login', error='naver_failed'))
+
+        token_json = token_res.json()
+        access_token = token_json.get("access_token")
+        if not access_token:
+            logger.error(f"네이버 응답에 access_token 부재: {token_json}")
+            return redirect(url_for('main.login', error='naver_failed'))
+
+        # 2. 네이버 회원 프로필 정보 조회
+        profile_res = httpx.get(
+            "https://openapi.naver.com/v1/nid/me",
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=10.0
+        )
+
+        if profile_res.status_code != 200:
+            logger.error(f"네이버 프로필 조회 실패: {profile_res.text}")
+            return redirect(url_for('main.login', error='naver_failed'))
+
+        profile_data = profile_res.json()
+        response_data = profile_data.get("response", {})
+        naver_id = str(response_data.get("id") or "")
+        if not naver_id:
+            logger.error(f"네이버 응답에 고유 회원 ID 부재: {profile_data}")
+            return redirect(url_for('main.login', error='naver_failed'))
+
+        name = response_data.get("name") or response_data.get("nickname") or f"네이버회원_{naver_id[:6]}"
+        email = response_data.get("email") or f"naver_{naver_id[:8]}@yangsanfc.local"
+        phone = response_data.get("mobile") or ""
+        avatar_url = response_data.get("profile_image") or ""
+
+        # 3. Flask 세션에 사용자 정보 저장 (기존 Supabase Auth 및 카카오 세션 규격과 100% 일치)
+        user_uuid = f"naver-{naver_id}"
+        session['user_id'] = user_uuid
+        session['email'] = email
+        session['user'] = {
+            "id": user_uuid,
+            "email": email,
+            "name": name,
+            "phone": phone,
+            "provider": "naver",
+            "avatar_url": avatar_url
+        }
+        session['naver_access_token'] = access_token
+        logger.info(f"네이버 OAuth 로그인 성공: {name} ({user_uuid})")
+
+        return redirect(url_for('main.index'))
+
+    except Exception as e:
+        logger.error(f"네이버 로그인 처리 중 예외 발생: {e}")
+        return redirect(url_for('main.login', error='naver_failed'))
+
+
+# ==============================================================================
 # 4. 이메일 인증 처리 (GET /auth/confirm)
 # ==============================================================================
 

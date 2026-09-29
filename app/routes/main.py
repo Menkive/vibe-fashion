@@ -368,3 +368,11 @@ def logout():
     session.clear()
     return redirect(url_for('main.index'))
 
+
+@main_bp.route('/mypage')
+def mypage():
+    """마이페이지 라우트 (로그인 필요)"""
+    if not session.get('user') and not session.get('user_id'):
+        return redirect(url_for('main.login', error='login_required'))
+    return render_template('mypage.html')
+
