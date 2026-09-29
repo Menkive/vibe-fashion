@@ -423,6 +423,24 @@ def oauth_callback():
                     timeout=10.0
                 )
 
+                # 만약 KOE010 (Bad client credentials) 또는 401 오류가 발생한 경우:
+                # 카카오 콘솔에서 Client Secret 활성화가 OFF 상태이거나 시크릿이 일치하지 않을 수 있으므로,
+                # client_secret을 제외하고 재시도 (또는 반대로 시도)
+                if token_res.status_code != 200 and "KOE010" in token_res.text:
+                    logger.warning(f"카카오 KOE010 발생 ({token_res.text}), client_secret 제외 후 재요청 시도...")
+                    fallback_data = {
+                        "grant_type": "authorization_code",
+                        "client_id": kakao_client_id,
+                        "redirect_uri": callback_url,
+                        "code": code
+                    }
+                    token_res = httpx.post(
+                        "https://kauth.kakao.com/oauth/token",
+                        data=fallback_data,
+                        headers={"Content-Type": "application/x-www-form-urlencoded;charset=utf-8"},
+                        timeout=10.0
+                    )
+
                 if token_res.status_code == 200:
                     tokens = token_res.json()
                     kakao_access_token = tokens.get("access_token")
