@@ -401,8 +401,12 @@ def oauth_callback():
     # 2. Supabase 내장 교환 실패 시: 카카오 REST 직접 연동 토큰 및 프로필 조회 폴백
     error_detail = None
     if not session_established:
-        kakao_client_id = os.getenv("KAKAO_CLIENT_ID") or os.getenv("KAKAO_REST_API_KEY")
-        kakao_client_secret = os.getenv("KAKAO_CLIENT_SECRET")
+        kakao_client_id = (
+            os.getenv("KAKAO_CLIENT_ID") or
+            os.getenv("KAKAO_REST_API_KEY") or
+            "8d2260c46401c073f2873b4919c1f169"
+        )
+        kakao_client_secret = os.getenv("KAKAO_CLIENT_SECRET") or "pbSsQFn8I8vmZ0BlCqUqfmInm0KvGfrd"
 
         if kakao_client_id:
             try:
