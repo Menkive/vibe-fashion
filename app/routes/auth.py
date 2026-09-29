@@ -399,6 +399,7 @@ def oauth_callback():
             logger.warning(f"Supabase exchange_code_for_session 실패: {se}")
 
     # 2. Supabase 내장 교환 실패 시: 카카오 REST 직접 연동 토큰 및 프로필 조회 폴백
+    error_detail = None
     if not session_established:
         kakao_client_id = os.getenv("KAKAO_CLIENT_ID") or os.getenv("KAKAO_REST_API_KEY")
         kakao_client_secret = os.getenv("KAKAO_CLIENT_SECRET")
@@ -479,15 +480,21 @@ def oauth_callback():
                         logger.info(f"카카오 직접 토큰 인증 로그인 성공: {nickname} ({user_uuid})")
                     else:
                         logger.error(f"카카오 사용자 정보 요청 실패: {user_res.text}")
+                        error_detail = f"user_me_error: {user_res.status_code} {user_res.text[:100]}"
                 else:
                     logger.error(f"카카오 토큰 발급 요청 실패: {token_res.text}")
+                    error_detail = f"token_error: {token_res.status_code} {token_res.text[:100]}"
             except Exception as ke:
                 logger.error(f"카카오 직접 인증 처리 중 오류: {ke}")
+                error_detail = f"exception: {str(ke)}"
 
     if session_established:
         return redirect(url_for('main.index'))
     else:
-        return redirect(url_for('main.login', error='kakao_failed'))
+        redirect_params = {'error': 'kakao_failed'}
+        if error_detail:
+            redirect_params['error_detail'] = error_detail
+        return redirect(url_for('main.login', **redirect_params))
 
 
 # ==============================================================================

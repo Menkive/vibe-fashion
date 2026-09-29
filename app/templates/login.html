@@ -20,6 +20,7 @@
 
                         <!-- 알림 메시지 영역 -->
                         {% set error = request.args.get('error') %}
+                        {% set error_detail = request.args.get('error_detail') %}
                         {% if error %}
                         <div class="alert alert-danger py-2 px-3 small rounded-3 mb-3" role="alert">
                             <i class="bi bi-exclamation-circle-fill me-1"></i>
@@ -41,6 +42,11 @@
                                 네이버 로그인 세션이 만료되었습니다. 다시 시도해 주세요.
                             {% else %}
                                 로그인 처리 중 오류가 발생했습니다.
+                            {% endif %}
+                            {% if error_detail %}
+                            <div class="mt-1 pt-1 border-top border-danger-subtle font-monospace text-break" style="font-size: 0.8rem;">
+                                <strong>상세 에러:</strong> {{ error_detail }}
+                            </div>
                             {% endif %}
                         </div>
                         {% endif %}

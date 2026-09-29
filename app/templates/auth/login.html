@@ -55,6 +55,11 @@
                             {% else %}
                                 로그인에 실패했습니다. 입력 정보를 확인해주세요.
                             {% endif %}
+                            {% if error_detail %}
+                            <div class="mt-1 pt-1 border-top border-danger-subtle font-monospace text-break" style="font-size: 0.8rem;">
+                                <strong>상세 에러:</strong> {{ error_detail }}
+                            </div>
+                            {% endif %}
                         </div>
                         {% endif %}
 
