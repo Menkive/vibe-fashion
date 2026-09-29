@@ -233,10 +233,13 @@ def kakao_login():
     supabase = get_supabase_client()
     if supabase:
         try:
+            # 개인 개발자 앱 호환: account_email 권한이 없더라도 에러(KOE205) 없이 로그인되도록
+            # 이미 허용된 닉네임과 프로필 이미지만 scopes로 요청
             res = supabase.auth.sign_in_with_oauth({
                 "provider": "kakao",
                 "options": {
-                    "redirect_to": callback_url
+                    "redirect_to": callback_url,
+                    "scopes": "profile_nickname profile_image"
                 }
             })
             if res and res.url:
@@ -260,6 +263,7 @@ def kakao_login():
             f"?client_id={kakao_client_id}"
             f"&redirect_uri={callback_url}"
             f"&response_type=code"
+            f"&scope=profile_nickname,profile_image"
         )
         return redirect(kakao_auth_url)
 
