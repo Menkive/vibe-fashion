@@ -11,12 +11,13 @@
             <div class="col-lg-7 col-xl-7 text-center text-lg-start order-2 order-lg-1">
                 <span class="season-badge mb-3">2026 K LEAGUE OFFICIAL MD</span>
                 <h1 class="display-4 fw-bold mb-3">
-                    양산의 심장을 뛰게 할<br>
-                    <span style="color: var(--color-secondary);">푸른 투혼</span>을 입어라!
+                    양산의 심장을 깨우는<br>
+                    <span style="color: var(--color-secondary);">푸른 자부심</span>을 입다
                 </h1>
                 <p class="hero-subtext mb-4">
-                    양산시민축구단 2026 시즌 공식 어센틱 유니폼 & 서포터즈 머천다이즈.<br class="d-none d-md-block">
-                    선수단과 동일한 최고급 기능성 원단으로 경기장의 열정을 함께하세요.
+                    양산시민축구단 2026 시즌 공식 어센틱 유니폼 & 팬 컬렉션.<br class="d-none d-md-block">
+                    선수단의 퍼포먼스를 담은 프리미엄 기능성 원단으로,<br class="d-none d-md-block">
+                    경기장의 열기와 도시의 자부심을 일상 속에 더해보세요.
                 </p>
                 <div class="d-flex flex-column flex-sm-row gap-3 justify-content-center justify-content-lg-start">
                     <a href="{{ url_for('main.product_list') }}" class="btn btn-cta-primary d-inline-flex align-items-center justify-content-center gap-2">
@@ -122,9 +123,9 @@
                         <!-- 5. 가격 -->
                         <div class="product-price-wrapper">
                             {% if product.original_price %}
-                            <span class="product-original-price">{{ product.original_price }}</span>
+                            <span class="product-original-price">{{ product.original_price|currency }}</span>
                             {% endif %}
-                            <span class="product-price">{{ product.price }}</span>
+                            <span class="product-price">{{ product.price|currency }}</span>
                         </div>
 
                         <!-- 6. 담기 버튼 -->

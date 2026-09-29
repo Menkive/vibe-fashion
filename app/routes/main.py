@@ -35,7 +35,8 @@ def get_supabase_client() -> Client | None:
 def fetch_all_products():
     """
     Supabase products 테이블과 연결을 시도하고,
-    미연결 시 또는 데이터 보충 시 INITIAL_PRODUCTS(8개 표준 구단 굿즈)를 제공합니다.
+    양산시민축구단 공식 카탈로그를 안전하게 제공합니다.
+    임시 샘플 상품(Unsplash 데모 등)은 필터링하고 공식 상품 중심으로 구성합니다.
     """
     supabase = get_supabase_client()
     if not supabase:
@@ -46,11 +47,19 @@ def fetch_all_products():
         db_items = response.data
         if db_items and len(db_items) >= 4:
             merged = []
+            # 제외할 키워드 및 이미지 필터링
+            excluded_names = ['크롭 티셔츠', '데님 팬츠', '코튼 자켓', '원피스', '스마트폰', '커피']
             for item in db_items:
+                item_name = item.get('name', '')
+                thumb = item.get('thumbnail_url', '') or ''
+                # 샘플 의류나 picsum/unsplash 임시 샘플 상품 제외
+                if any(ex in item_name for ex in excluded_names) or 'picsum.photos' in thumb:
+                    continue
+
                 cat = item.get('category') or '기타'
-                if '유니폼' in item.get('name', '') or cat == '유니폼':
+                if '유니폼' in item_name or cat == '유니폼':
                     sizes = ["S", "M", "L", "XL", "XXL"]
-                elif cat in ['의류', '트레이닝']:
+                elif cat in ['의류', '패션/잡화']:
                     sizes = ["M", "L", "XL"]
                 else:
                     sizes = ["Free"]
@@ -69,14 +78,14 @@ def fetch_all_products():
 
                 merged.append({
                     "id": item.get('id'),
-                    "name": item.get('name'),
+                    "name": item_name,
                     "slug": item.get('slug', f"product-{item.get('id')}"),
                     "category": cat,
                     "price": price,
                     "original_price": orig_price,
                     "description": item.get('description', ''),
-                    "image_url": item.get('thumbnail_url') or 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=800&q=80',
-                    "thumbnail_url": item.get('thumbnail_url') or 'https://images.unsplash.com/photo-1522778119026-d647f0596c20?auto=format&fit=crop&w=800&q=80',
+                    "image_url": thumb or '/static/images/home-uniform.png',
+                    "thumbnail_url": thumb or '/static/images/home-uniform.png',
                     "stock": item.get('stock', 50),
                     "sizes": sizes,
                     "badge": item.get('badge') or 'BEST',
@@ -97,25 +106,7 @@ def fetch_all_products():
 
 
 def get_product_by_id(product_id):
-    """상품 ID로 단일 상품 조회 (인기상품 6종 및 전체 상품 지원)"""
-    featured = get_featured_products()
-    for fp in featured:
-        if str(fp["id"]) == str(product_id):
-            return {
-                "id": fp["id"],
-                "name": fp["name"],
-                "slug": f"yangsan-uniform-{fp['id']}",
-                "category": fp["category"],
-                "price": fp["price_num"],
-                "original_price": None,
-                "description": fp["description"],
-                "image_url": fp["image_url"],
-                "thumbnail_url": fp["thumbnail_url"],
-                "stock": fp["stock"],
-                "sizes": ["S", "M", "L", "XL", "XXL"],
-                "badge": fp["badge"],
-                "is_featured": True
-            }
+    """상품 ID로 단일 상품 조회"""
     products = fetch_all_products()
     for p in products:
         if str(p["id"]) == str(product_id):
@@ -125,98 +116,19 @@ def get_product_by_id(product_id):
 
 def get_featured_products():
     """
-    메인 페이지 인기상품(BEST SELLERS) 6개 상품 목록을 반환합니다.
-    - 양산FC 유니폼 컬렉션 6종 구성
-    - 이미지: static/images/...png
+    메인 페이지 인기상품(BEST SELLERS) 목록을 반환합니다.
+    - 양산시민축구단 공식 카탈로그 중 is_featured=True인 상품 6종 구성
     """
-    uniform_products = [
-        {
-            "id": 1,
-            "name": "양산FC 홈 유니폼",
-            "category": "푸른색",
-            "price": "129,000원",
-            "price_num": 129000,
-            "original_price": None,
-            "image_url": "/static/images/home-uniform.png",
-            "thumbnail_url": "/static/images/home-uniform.png",
-            "description": "양산의 푸른 투혼을 담은 시그니처 로열 블루 홈 경기용 유니폼입니다.",
-            "badge": "BEST",
-            "stock": 50
-        },
-        {
-            "id": 2,
-            "name": "양산FC 어웨이 유니폼",
-            "category": "흰색",
-            "price": "119,000원",
-            "price_num": 119000,
-            "original_price": None,
-            "image_url": "/static/images/away-uniform.png",
-            "thumbnail_url": "/static/images/away-uniform.png",
-            "description": "세련된 화이트 톤과 깔끔한 배색이 돋보이는 원정 경기용 공식 저지입니다.",
-            "badge": "NEW",
-            "stock": 50
-        },
-        {
-            "id": 3,
-            "name": "양산FC 브라운 스페셜 유니폼",
-            "category": "갈색",
-            "price": "139,000원",
-            "price_num": 139000,
-            "original_price": None,
-            "image_url": "/static/images/brown-uniform.png",
-            "thumbnail_url": "/static/images/brown-uniform.png",
-            "description": "고급스러운 브라운 컬러웨이에 정밀 그래픽 패턴을 더한 한정판 스페셜 에디션입니다.",
-            "badge": "LIMITED",
-            "stock": 30
-        },
-        {
-            "id": 4,
-            "name": "양산FC 블루 스트라이프 유니폼",
-            "category": "푸른색 세로 줄무늬",
-            "price": "135,000원",
-            "price_num": 135000,
-            "original_price": None,
-            "image_url": "/static/images/stripe-uniform.png",
-            "thumbnail_url": "/static/images/stripe-uniform.png",
-            "description": "클래식한 버티컬 골드 & 블루 스트라이프로 전통과 자부심을 표현한 저지입니다.",
-            "badge": "MD 추천",
-            "stock": 45
-        },
-        {
-            "id": 5,
-            "name": "양산FC GK 레드 유니폼",
-            "category": "붉은색",
-            "price": "125,000원",
-            "price_num": 125000,
-            "original_price": None,
-            "image_url": "/static/images/gk-red-uniform.png",
-            "thumbnail_url": "/static/images/gk-red-uniform.png",
-            "description": "강렬한 레드 컬러로 골문을 든든하게 지켜내는 수문장을 위한 골키퍼 유니폼입니다.",
-            "badge": "GK",
-            "stock": 35
-        },
-        {
-            "id": 6,
-            "name": "양산FC GK 그린 유니폼",
-            "category": "녹색",
-            "price": "125,000원",
-            "price_num": 125000,
-            "original_price": None,
-            "image_url": "/static/images/gk-green-uniform.png",
-            "thumbnail_url": "/static/images/gk-green-uniform.png",
-            "description": "역동적인 그린 브러시 패턴과 최적의 활동성을 제공하는 골키퍼 유니폼입니다.",
-            "badge": "GK",
-            "stock": 35
-        }
-    ]
-    return uniform_products
+    products = fetch_all_products()
+    featured = [p for p in products if p.get('is_featured')]
+    return featured[:6] if featured else products[:6]
 
 
 @main_bp.route('/')
 def index():
     """
     메인 페이지 라우트:
-    Supabase products 테이블에서 is_active=true & is_featured=true 상품 최대 4개를 조회하여
+    공식 카탈로그에서 is_featured=true 인기 상품 6개를 조회하여
     index.html에 products 변수로 전달합니다.
     """
     products = get_featured_products()
@@ -262,16 +174,35 @@ def vote_page():
 
 @main_bp.route('/api/vote', methods=['POST'])
 def api_vote():
-    """팬 투표 참여 API (단일 선택, 실시간 결과 계산 반환)"""
+    """팬 투표 참여 API (단일 선택, 회원/세션 기반 중복 투표 방지, 실시간 결과 계산 반환)"""
     data = request.get_json(silent=True) or {}
     candidate_id = data.get('candidate_id')
 
     if not candidate_id:
         return jsonify({"success": False, "message": "투표할 디자인을 선택해주세요."}), 400
 
+    # 로그인 회원 또는 세션 기준 중복 투표 검증
+    user = session.get('user')
+    user_key = user.get('id') if isinstance(user, dict) and user.get('id') else session.get('user_id')
+    
+    # 세션 내 투표 기록 확인
+    voted_candidates = session.get('voted_candidates', {})
+    if user_key and user_key in voted_candidates:
+        return jsonify({"success": False, "message": "이미 2027 시즌 유니폼 투표에 참여하셨습니다. (1인 1회 참여)"}), 400
+    if session.get('has_voted'):
+        return jsonify({"success": False, "message": "이미 투표에 참여하셨습니다. (1인 1회 참여)"}), 400
+
     result = cast_vote(candidate_id)
     if not result:
-        return jsonify({"success": False, "message": "유효하지 않은 디자인 후보입니다."}), 404
+        return jsonify({"success": False, "message": "유효하지 않은 유니폼 후보입니다."}), 404
+
+    # 투표 완료 상태 저장
+    session['has_voted'] = True
+    session['voted_candidate_id'] = candidate_id
+    if user_key:
+        if 'voted_candidates' not in session:
+            session['voted_candidates'] = {}
+        session['voted_candidates'][user_key] = candidate_id
 
     return jsonify(result)
 
@@ -436,13 +367,4 @@ def logout():
 
     session.clear()
     return redirect(url_for('main.index'))
-
-
-@main_bp.route('/mypage')
-def mypage():
-    """마이페이지 라우트 (로그인 필요)"""
-    if not session.get('user_id'):
-        return redirect(url_for('auth.login', error='login_required'))
-    return render_template('mypage.html')
-
 

@@ -719,19 +719,27 @@ footer a:hover {
     border: 2px solid var(--color-border);
     border-radius: 12px;
     overflow: hidden;
-    transition: all 0.25s ease;
-    cursor: pointer;
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    background-color: #ffffff;
 }
 
 .vote-card:hover {
     border-color: var(--color-secondary);
-    transform: translateY(-4px);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    transform: translateY(-6px);
+    box-shadow: 0 12px 30px rgba(10, 35, 66, 0.25), 0 0 15px rgba(212, 175, 55, 0.2);
 }
 
 .vote-card.selected {
-    border-color: var(--color-secondary);
-    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.4);
+    border-color: var(--color-secondary) !important;
+    box-shadow: 0 0 0 3px rgba(212, 175, 55, 0.5), 0 12px 25px rgba(0, 0, 0, 0.15);
+}
+
+.vote-img-wrapper img {
+    transition: transform 0.4s ease;
+}
+
+.vote-card:hover .vote-img-wrapper img {
+    transform: scale(1.05);
 }
 
 .progress-vote-bar {
