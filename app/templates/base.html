@@ -75,19 +75,24 @@
                             <li><span class="dropdown-item-text text-white-50 small"><i class="bi bi-envelope me-1"></i>{{ session.user.email }}</span></li>
                             <li><hr class="dropdown-divider border-secondary border-opacity-25"></li>
                             <li>
+                                <a class="dropdown-item text-white d-flex align-items-center gap-2 py-2" href="{{ url_for('main.mypage') }}">
+                                    <i class="bi bi-person-gear text-warning"></i> 마이페이지
+                                </a>
+                            </li>
+                            <li>
                                 <a class="dropdown-item text-white d-flex align-items-center gap-2 py-2" href="{{ url_for('main.logout') }}">
-                                    <i class="bi bi-box-arrow-right text-warning"></i> 로그아웃
+                                    <i class="bi bi-box-arrow-right text-danger"></i> 로그아웃
                                 </a>
                             </li>
                         </ul>
                     </div>
                     {% else %}
                     <div class="auth-nav-links d-flex align-items-center gap-2 small">
-                        <a href="{{ url_for('main.login') }}" class="nav-auth-link text-white-50 text-decoration-none">
+                        <a href="{{ url_for('auth.login') }}" class="nav-auth-link text-white-50 text-decoration-none">
                             <i class="bi bi-box-arrow-in-right me-1"></i>로그인
                         </a>
                         <span class="text-white-50 opacity-50">|</span>
-                        <a href="{{ url_for('main.signup') }}" class="nav-auth-link text-warning text-decoration-none fw-semibold">
+                        <a href="{{ url_for('auth.signup') }}" class="nav-auth-link text-warning text-decoration-none fw-semibold">
                             <i class="bi bi-person-plus me-1"></i>회원가입
                         </a>
                     </div>

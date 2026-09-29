@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+
+{% block title %}로그인 | 양산시민축구단 공식 온라인 스토어{% endblock %}
+
+{% block content %}
+<section class="auth-section py-5">
+    <div class="container py-3">
+        <div class="row justify-content-center">
+            <div class="col-12 col-sm-10 col-md-8 col-lg-5 col-xl-4">
+                <div class="card auth-card shadow-lg border-0">
+                    <div class="card-body p-4 p-sm-5">
+                        <!-- 로고 및 안내 타이틀 -->
+                        <div class="text-center mb-4">
+                            <img src="{{ url_for('static', filename='images/yangsan-fc-symbol.png') }}"
+                                 alt="양산시민축구단 심볼 로고"
+                                 class="auth-brand-logo mb-3"
+                                 onerror="this.style.display='none';">
+                            <h3 class="fw-bold text-dark mb-1">양산시민축구단</h3>
+                            <p class="text-muted small">공식 온라인 스토어에 오신 것을 환영합니다</p>
+                        </div>
+
+                        <!-- 오류 메시지 알림 (URL query parameter) -->
+                        {% set error = request.args.get('error') %}
+                        {% if error %}
+                        <div class="alert alert-danger py-2 px-3 small rounded-3 mb-3" role="alert">
+                            <i class="bi bi-exclamation-circle-fill me-1"></i>
+                            {% if error == 'email_not_confirmed' %}
+                                이메일 인증이 완료되지 않았습니다. 받은 메일의 인증 링크를 확인해주세요.
+                            {% elif error == 'invalid_credentials' %}
+                                이메일 또는 비밀번호가 올바르지 않습니다.
+                            {% elif error == 'login_required' %}
+                                로그인이 필요한 서비스입니다.
+                            {% elif error == 'email_confirmation_failed' %}
+                                이메일 인증 처리에 실패했습니다. 유효하지 않거나 만료된 링크입니다.
+                            {% elif error == 'server_error' %}
+                                인증 서버와의 통신에 실패했습니다. 잠시 후 다시 시도해주세요.
+                            {% else %}
+                                로그인에 실패했습니다. 입력 정보를 확인해주세요.
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- 성공 메시지 알림 (URL query parameter) -->
+                        {% set success = request.args.get('success') %}
+                        {% if success %}
+                        <div class="alert alert-success py-2 px-3 small rounded-3 mb-3" role="alert">
+                            <i class="bi bi-check-circle-fill me-1"></i>
+                            {% if success == 'password_reset' %}
+                                비밀번호가 변경되었습니다. 새 비밀번호로 로그인해주세요.
+                            {% else %}
+                                처리가 완료되었습니다.
+                            {% endif %}
+                        </div>
+                        {% endif %}
+
+                        <!-- 로그인 폼 (POST /auth/login) -->
+                        <form action="{{ url_for('auth.login') }}" method="POST">
+                            <div class="mb-3">
+                                <label for="login-email" class="form-label small fw-semibold text-secondary">이메일 주소</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0 text-muted">
+                                        <i class="bi bi-envelope"></i>
+                                    </span>
+                                    <input type="email" name="email" class="form-control border-start-0 ps-0" id="login-email" placeholder="example@email.com" required autocomplete="email">
+                                </div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="login-password" class="form-label small fw-semibold text-secondary">비밀번호</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0 text-muted">
+                                        <i class="bi bi-lock"></i>
+                                    </span>
+                                    <input type="password" name="password" class="form-control border-start-0 ps-0" id="login-password" placeholder="비밀번호 입력" required autocomplete="current-password">
+                                    <button class="btn btn-outline-secondary border-start-0 bg-light text-muted" type="button" id="toggle-password-btn">
+                                        <i class="bi bi-eye"></i>
+                                    </button>
+                                </div>
+                            </div>
+
+                            <!-- 비밀번호 찾기 링크 -->
+                            <div class="d-flex justify-content-end align-items-center mb-4 small">
+                                <a href="{{ url_for('auth.forgot_password') }}" class="text-decoration-none text-secondary">
+                                    비밀번호 찾기
+                                </a>
+                            </div>
+
+                            <!-- 로그인 제출 버튼 -->
+                            <button type="submit" class="btn btn-primary w-100 py-3 fw-bold mb-3">
+                                <i class="bi bi-box-arrow-in-right me-1"></i> 로그인
+                            </button>
+                        </form>
+
+                        <!-- 회원가입 유도 링크 -->
+                        <div class="text-center pt-3 border-top border-light-subtle small text-muted">
+                            아직 회원이 아니신가요?
+                            <a href="{{ url_for('auth.signup') }}" class="fw-bold text-decoration-none text-primary ms-1">
+                                회원가입 <i class="bi bi-arrow-right"></i>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const togglePwBtn = document.getElementById('toggle-password-btn');
+    const pwInput = document.getElementById('login-password');
+
+    if (togglePwBtn && pwInput) {
+        togglePwBtn.addEventListener('click', () => {
+            const isPassword = pwInput.getAttribute('type') === 'password';
+            pwInput.setAttribute('type', isPassword ? 'text' : 'password');
+            togglePwBtn.innerHTML = isPassword ? '<i class="bi bi-eye-slash"></i>' : '<i class="bi bi-eye"></i>';
+        });
+    }
+});
+</script>
+{% endblock %}

@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}마이페이지 | 양산시민축구단 공식 온라인 스토어{% endblock %}
+
+{% block content %}
+<section class="py-5">
+    <div class="container py-4">
+        <!-- 성공 메시지 (이메일 인증 성공 등) -->
+        {% set success = request.args.get('success') %}
+        {% if success == 'email_confirmed' %}
+        <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            이메일 인증이 완료되었습니다. 양산시민축구단 공식 스토어에 오신 것을 환영합니다!
+            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+        </div>
+        {% endif %}
+
+        <div class="row g-4">
+            <!-- 사용자 프로필 카드 -->
+            <div class="col-12 col-md-4">
+                <div class="card shadow-sm border-0 rounded-4 overflow-hidden">
+                    <div class="card-header bg-dark text-white text-center py-4">
+                        <div class="rounded-circle bg-warning text-dark d-inline-flex justify-content-center align-items-center mb-2" style="width: 72px; height: 72px; font-size: 28px;">
+                            <i class="bi bi-person-fill"></i>
+                        </div>
+                        <h5 class="fw-bold mb-1">{{ session.get('email') }}</h5>
+                        <span class="badge bg-success">공식 서포터즈 회원</span>
+                    </div>
+                    <div class="card-body p-4">
+                        <ul class="list-unstyled mb-4">
+                            <li class="mb-3 d-flex justify-content-between align-items-center">
+                                <span class="text-muted small">이메일</span>
+                                <span class="fw-semibold">{{ session.get('email') }}</span>
+                            </li>
+                            <li class="mb-3 d-flex justify-content-between align-items-center">
+                                <span class="text-muted small">회원 식별번호</span>
+                                <span class="badge bg-light text-dark font-monospace text-truncate" style="max-width: 150px;">{{ session.get('user_id') }}</span>
+                            </li>
+                        </ul>
+                        <div class="d-grid gap-2">
+                            <a href="{{ url_for('main.logout') }}" class="btn btn-outline-danger">
+                                <i class="bi bi-box-arrow-right me-1"></i> 로그아웃
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 스토어 서비스 안내 영역 -->
+            <div class="col-12 col-md-8">
+                <div class="card shadow-sm border-0 rounded-4 p-4 mb-4">
+                    <h5 class="fw-bold mb-3"><i class="bi bi-shield-check text-primary me-2"></i>회원 전용 혜택 안내</h5>
+                    <p class="text-muted mb-4">양산시민축구단 공식 스토어 인증 회원은 유니폼 팬투표 참여 및 주문 혜택을 이용하실 수 있습니다.</p>
+                    <div class="row g-3">
+                        <div class="col-sm-6">
+                            <div class="p-3 border rounded-3 bg-light">
+                                <h6 class="fw-bold text-dark"><i class="bi bi-patch-check-fill text-warning me-2"></i>2027 유니폼 투표</h6>
+                                <p class="small text-muted mb-2">원하는 콘셉트 디자인에 직접 투표하세요.</p>
+                                <a href="{{ url_for('main.vote_page') }}" class="btn btn-sm btn-primary">투표하러 가기</a>
+                            </div>
+                        </div>
+                        <div class="col-sm-6">
+                            <div class="p-3 border rounded-3 bg-light">
+                                <h6 class="fw-bold text-dark"><i class="bi bi-bag-check-fill text-primary me-2"></i>공식 상품 쇼핑</h6>
+                                <p class="small text-muted mb-2">구단 공식 굿즈 및 어센틱 유니폼을 만나보세요.</p>
+                                <a href="{{ url_for('main.product_list') }}" class="btn btn-sm btn-outline-primary">상품 둘러보기</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}

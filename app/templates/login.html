@@ -54,7 +54,7 @@
                                         로그인 상태 유지
                                     </label>
                                 </div>
-                                <a href="javascript:void(0);" onclick="alert('비밀번호 재설정 링크는 고객센터(1588-0000) 또는 관리자에게 문의해 주세요.');" class="text-decoration-none text-secondary">
+                                <a href="{{ url_for('auth.forgot_password') }}" class="text-decoration-none text-secondary">
                                     비밀번호 찾기
                                 </a>
                             </div>

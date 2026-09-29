@@ -138,6 +138,57 @@ INITIAL_PRODUCTS: List[Dict[str, Any]] = [
         "is_featured": False,
         "is_new": True,
         "sales_count": 1150
+    },
+    {
+        "id": 9,
+        "name": "2028 양산시민축구단 오피셜 서포터 머플러",
+        "slug": "yangsan-fc-official-supporter-muffler",
+        "category": "액세서리",
+        "price": 22000,
+        "original_price": 25000,
+        "description": "양산시민축구단 공식 엠블럼과 로고가 정밀 자카드 편직된 공식 서포터 니트 머플러입니다. 경기장 응원 및 일상 코디에 최적화되었습니다.",
+        "image_url": "/static/images/yangsan-fc-muffler.png",
+        "thumbnail_url": "/static/images/yangsan-fc-muffler.png",
+        "stock": 100,
+        "sizes": ["Free"],
+        "badge": "BEST",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 2850
+    },
+    {
+        "id": 10,
+        "name": "2028 양산시민축구단 오피셜 엠블럼 볼캡",
+        "slug": "yangsan-fc-official-emblem-ballcap",
+        "category": "액세서리",
+        "price": 29000,
+        "original_price": 34000,
+        "description": "양산FC 시그니처 로열 블루 원단에 정밀 입체 자수 엠블럼과 골드 파이핑 챙 디테일을 더한 공식 경기용 볼캡입니다.",
+        "image_url": "/static/images/yangsan-fc-ballcap.png",
+        "thumbnail_url": "/static/images/yangsan-fc-ballcap.png",
+        "stock": 85,
+        "sizes": ["Free"],
+        "badge": "HOT",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 1920
+    },
+    {
+        "id": 11,
+        "name": "2028 양산시민축구단 오피셜 엠블럼 스티커&배지 세트",
+        "slug": "yangsan-fc-official-sticker-badge-set",
+        "category": "액세서리",
+        "price": 12000,
+        "original_price": 15000,
+        "description": "고급 골드 메탈 프레임 엠블럼 마그네틱/핀 배지와 방수 PVC 공식 그래픽 스티커 5종으로 구성된 구단 오피셜 기프트 세트입니다.",
+        "image_url": "/static/images/yangsan-fc-badge-sticker-set.png",
+        "thumbnail_url": "/static/images/yangsan-fc-badge-sticker-set.png",
+        "stock": 120,
+        "sizes": ["Free"],
+        "badge": "MD추천",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 1470
     }
 ]
 

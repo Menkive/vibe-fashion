@@ -85,11 +85,10 @@ def fetch_all_products():
                     "sales_count": 100
                 })
 
-            if len(merged) < 8:
-                existing_names = {m["name"] for m in merged}
-                for init_item in INITIAL_PRODUCTS:
-                    if init_item["name"] not in existing_names:
-                        merged.append(init_item)
+            existing_names = {m["name"] for m in merged}
+            for init_item in INITIAL_PRODUCTS:
+                if init_item["name"] not in existing_names:
+                    merged.append(init_item)
             return merged
         return INITIAL_PRODUCTS
     except Exception as e:
@@ -437,4 +436,13 @@ def logout():
 
     session.clear()
     return redirect(url_for('main.index'))
+
+
+@main_bp.route('/mypage')
+def mypage():
+    """마이페이지 라우트 (로그인 필요)"""
+    if not session.get('user_id'):
+        return redirect(url_for('auth.login', error='login_required'))
+    return render_template('mypage.html')
+
 

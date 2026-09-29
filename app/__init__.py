@@ -39,9 +39,11 @@ def create_app():
 
     # routes 폴더에서 블루프린트(라우트 모듈) 가져오기
     from app.routes.main import main_bp
+    from app.routes.auth import auth_bp
 
     # 앱에 블루프린트 등록
     app.register_blueprint(main_bp)
+    app.register_blueprint(auth_bp)
 
     return app
 
