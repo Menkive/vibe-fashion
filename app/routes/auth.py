@@ -222,53 +222,55 @@ def resend_confirmation():
 def kakao_login():
     """
     카카오 OAuth 소셜 로그인 시작:
-    1순위: Supabase Auth 내장 Provider ('kakao') 사용
-    2순위: 카카오 REST API Key가 .env에 설정된 경우 카카오 공식 인가 페이지로 직접 리다이렉트
+    1순위 (직접 인가): KAKAO_CLIENT_ID가 설정되어 있거나 Supabase에 등록된 REST API 키를 사용하여
+                     카카오 공식 인가 엔드포인트(kauth.kakao.com)로 직접 요청합니다.
+                     (이 방식은 Supabase의 기본 account_email 강제 요구로 인한 개인앱 KOE205 에러를 완벽히 우회합니다.)
+    2순위: Supabase Auth 내장 Provider ('kakao')
     """
     base_url = SITE_URL
     if request.host_url:
         base_url = request.host_url.rstrip('/')
     callback_url = f"{base_url}/auth/callback"
 
+    # 카카오 REST API 키 (환경변수 또는 Supabase 프로젝트에 등록된 클라이언트 키)
+    kakao_client_id = (
+        os.getenv("KAKAO_CLIENT_ID") or
+        os.getenv("KAKAO_REST_API_KEY") or
+        "8d2260c46401c073f2873b4919c1f169"  # Supabase 설정에 등록된 카카오 앱 REST API 키
+    )
+
+    if kakao_client_id:
+        import secrets
+        import urllib.parse
+        state = secrets.token_urlsafe(16)
+        session['kakao_oauth_state'] = state
+
+        kakao_params = {
+            "client_id": kakao_client_id,
+            "redirect_uri": callback_url,
+            "response_type": "code",
+            "scope": "profile_nickname,profile_image",
+            "state": state
+        }
+        kakao_auth_url = f"https://kauth.kakao.com/oauth/authorize?{urllib.parse.urlencode(kakao_params)}"
+        return redirect(kakao_auth_url)
+
+    # 대체 방식: Supabase Auth 내장 Provider
     supabase = get_supabase_client()
     if supabase:
         try:
-            # 개인 개발자 앱 호환: account_email 권한이 없더라도 에러(KOE205) 없이 로그인되도록
-            # 이미 허용된 닉네임과 프로필 이미지만 scopes로 요청
             res = supabase.auth.sign_in_with_oauth({
                 "provider": "kakao",
                 "options": {
-                    "redirect_to": callback_url,
-                    "scopes": "profile_nickname profile_image"
+                    "redirect_to": callback_url
                 }
             })
             if res and res.url:
-                # PKCE flow를 위한 code_verifier를 Flask 세션에 백업
-                try:
-                    code_verifier = supabase.auth._storage.get_item(f"{supabase.auth._storage_key}-code-verifier")
-                    if code_verifier:
-                        session['oauth_code_verifier'] = code_verifier
-                except Exception as ve:
-                    logger.debug(f"code_verifier 백업 알림: {ve}")
-
                 return redirect(res.url)
         except Exception as e:
-            logger.warning(f"Supabase Kakao OAuth URL 생성 예외 (대체 방식 시도): {e}")
+            logger.warning(f"Supabase Kakao OAuth URL 생성 예외: {e}")
 
-    # 대체 방식: 카카오 REST API 직접 인가 (KAKAO_CLIENT_ID / KAKAO_REST_API_KEY 환경변수 설정 시)
-    kakao_client_id = os.getenv("KAKAO_CLIENT_ID") or os.getenv("KAKAO_REST_API_KEY")
-    if kakao_client_id:
-        kakao_auth_url = (
-            f"https://kauth.kakao.com/oauth/authorize"
-            f"?client_id={kakao_client_id}"
-            f"&redirect_uri={callback_url}"
-            f"&response_type=code"
-            f"&scope=profile_nickname,profile_image"
-        )
-        return redirect(kakao_auth_url)
-
-    # 환경변수 미설정 시 사용자 친화적인 안내
-    logger.error("카카오 로그인 설정(Supabase Kakao Provider 또는 KAKAO_CLIENT_ID)이 필요합니다.")
+    logger.error("카카오 로그인 설정(KAKAO_CLIENT_ID)이 필요합니다.")
     return redirect(url_for('main.login', error='kakao_not_configured'))
 
 
