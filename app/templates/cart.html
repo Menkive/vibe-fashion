@@ -257,6 +257,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.remove();
             }
             updateCartSummary();
+            if (window.CartManager && typeof window.CartManager.updateBadge === 'function') {
+                window.CartManager.updateBadge();
+            }
             showCartToast('상품이 삭제되었습니다.', 'success');
 
             // 남은 상품이 없으면 새로고침하여 빈 장바구니 표시
@@ -278,6 +281,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 
                 try {
                     await Promise.all(cartIds.map(id => deleteCartItem(id)));
+                    if (window.CartManager && typeof window.CartManager.updateBadge === 'function') {
+                        window.CartManager.updateBadge();
+                    }
                     showCartToast('모든 상품이 삭제되었습니다.', 'success');
                     setTimeout(() => location.reload(), 300);
                 } catch (err) {
@@ -319,6 +325,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 // ✅ DOM 즉시 업데이트 (페이지 새로고침 제거)
                 updateItemDisplay(row, data.data);
                 updateCartSummary();
+                if (window.CartManager && typeof window.CartManager.updateBadge === 'function') {
+                    await window.CartManager.updateBadge();
+                }
                 showCartToast('수량이 변경되었습니다.', 'success');
             } else if (response.status === 400) {
                 showCartToast(data.message || '수량 변경 실패', 'error');

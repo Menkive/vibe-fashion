@@ -882,6 +882,42 @@ def cart_delete(cart_id):
         return jsonify({"success": False, "message": f"장바구니 삭제 중 오류가 발생했습니다: {str(e)}"}), 500
 
 
+@main_bp.route('/api/cart/count', methods=['GET'])
+def cart_count():
+    """
+    현재 로그인된 사용자의 장바구니 총 수량(또는 품목 수) 조회 API
+    비로그인 시 0 반환
+    """
+    user_info = session.get('user') or {}
+    user_id = user_info.get('id') or session.get('user_id')
+    if not user_id:
+        return jsonify({"success": True, "count": 0}), 200
+
+    admin_client = get_supabase_admin_client()
+    anon_client = get_supabase_client()
+    db_client = admin_client or anon_client
+
+    if not db_client:
+        return jsonify({"success": False, "count": 0}), 500
+
+    try:
+        cart_res = db_client.table('carts') \
+            .select('id, quantity') \
+            .eq('user_id', user_id) \
+            .execute()
+
+        items = cart_res.data or []
+        total_quantity = sum(int(item.get('quantity', 0)) for item in items)
+        return jsonify({
+            "success": True,
+            "count": total_quantity,
+            "item_count": len(items)
+        }), 200
+    except Exception as e:
+        logger.error(f"장바구니 카운트 조회 오류: {e}")
+        return jsonify({"success": False, "count": 0}), 500
+
+
 @main_bp.route('/vote')
 def vote_page():
     """2027 시즌 유니폼 디자인 팬 투표 페이지"""

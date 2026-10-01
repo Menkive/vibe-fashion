@@ -1,6 +1,6 @@
 // static/js/store.js - 양산시민축구단 공식 스토어 클라이언트 장바구니 및 유틸리티
 
-const CartManager = {
+window.CartManager = {
     STORAGE_KEY: 'yangsan_fc_cart_v1',
 
     getItems() {
@@ -139,30 +139,43 @@ const CartManager = {
         }
     },
 
-    updateBadge() {
+    async updateBadge() {
         try {
-            const count = this.getTotalCount();
             const badges = document.querySelectorAll('.cart-count');
-            
             if (badges.length === 0) {
-                console.warn('[CartManager] 장바구니 뱃지를 찾을 수 없습니다.');
                 return;
             }
-            
+
+            let count = 0;
+
+            // 1) 로그인 상태인 경우 DB API에서 최신 장바구니 수량 조회
+            if (window.isLoggedIn) {
+                try {
+                    const res = await fetch('/api/cart/count');
+                    if (res.ok) {
+                        const data = await res.json();
+                        if (data && typeof data.count === 'number') {
+                            count = data.count;
+                        }
+                    }
+                } catch (apiErr) {
+                    // API 실패 시 localStorage 폴백
+                    count = this.getTotalCount();
+                }
+            } else {
+                // 2) 비로그인 상태인 경우 localStorage 수량 반영
+                count = this.getTotalCount();
+            }
+
             badges.forEach(b => {
-                // 뱃지 숫자 업데이트
-                b.textContent = Math.max(0, count);  // 음수 방지
-                
-                // 뱃지 표시/숨김 처리
+                b.textContent = Math.max(0, count);
                 if (count > 0) {
                     b.style.display = 'inline-block';
                 } else {
                     b.style.display = 'none';
-                    b.textContent = '';  // count = 0일 때 텍스트도 비우기
+                    b.textContent = '';
                 }
             });
-            
-            console.log(`[CartManager] 뱃지 업데이트: ${count}개`);
         } catch (e) {
             console.error('뱃지 업데이트 오류:', e);
         }
