@@ -421,13 +421,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 가격 포맷팅 함수 (원화)
+    // 가격 포맷팅 함수 (원화 포맷: 109,000원)
     function formatCurrency(value) {
-        return new Intl.NumberFormat('ko-KR', {
-            style: 'currency',
-            currency: 'KRW',
-            minimumFractionDigits: 0
-        }).format(value);
+        return (Number(value) || 0).toLocaleString('ko-KR') + '원';
     }
 
     // 삭제 API 호출
