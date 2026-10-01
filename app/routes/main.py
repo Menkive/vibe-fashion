@@ -2,7 +2,7 @@
 import os
 import sys
 import logging
-from flask import Blueprint, render_template, request, jsonify, abort, session, url_for
+from flask import Blueprint, render_template, request, jsonify, abort, session, url_for, redirect, current_app
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from app.models import INITIAL_PRODUCTS, get_vote_candidates, cast_vote
