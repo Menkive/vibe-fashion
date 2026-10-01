@@ -193,8 +193,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.disabled) return;
             
             const cartId = btn.getAttribute('data-cart-id');
-            const row = btn.closest('[data-cart-id]');
-            const qtyInput = row.querySelector('input[type="text"]');
+            const row = btn.closest('.p-3[data-cart-id]') || btn.closest('[data-cart-id]');
+            const qtyInput = row ? row.querySelector('input[type="text"]') : null;
+            if (!qtyInput) return;
             const currentQty = parseInt(qtyInput.value, 10);
             const newQty = currentQty + 1;
 
@@ -211,8 +212,9 @@ document.addEventListener('DOMContentLoaded', () => {
             if (btn.disabled) return;
             
             const cartId = btn.getAttribute('data-cart-id');
-            const row = btn.closest('[data-cart-id]');
-            const qtyInput = row.querySelector('input[type="text"]');
+            const row = btn.closest('.p-3[data-cart-id]') || btn.closest('[data-cart-id]');
+            const qtyInput = row ? row.querySelector('input[type="text"]') : null;
+            if (!qtyInput) return;
             const currentQty = parseInt(qtyInput.value, 10);
 
             if (currentQty > 1) {
@@ -227,12 +229,14 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', (e) => {
             e.preventDefault();
             const cartId = btn.getAttribute('data-cart-id');
-            const row = btn.closest('[data-cart-id]');
-            const productName = row.querySelector('h6').textContent;
+            const row = btn.closest('.p-3[data-cart-id]') || btn.closest('[data-cart-id]');
+            if (!row) return;
+            const productName = row.querySelector('h6') ? row.querySelector('h6').textContent : '상품';
             const image = row.querySelector('img');
-            const size = row.querySelector('.badge').textContent || '해당 상품';
+            const sizeBadge = row.querySelector('.badge');
+            const size = sizeBadge ? sizeBadge.textContent : '해당 상품';
 
-            document.getElementById('deleteModalProductImage').src = image.src;
+            if (image) document.getElementById('deleteModalProductImage').src = image.src;
             document.getElementById('deleteModalProductName').textContent = productName;
             document.getElementById('deleteModalProductSize').textContent = size;
 
@@ -245,23 +249,41 @@ document.addEventListener('DOMContentLoaded', () => {
     deleteConfirmBtn.addEventListener('click', async () => {
         if (!pendingDeleteCartId) return;
 
-        await deleteCartItem(pendingDeleteCartId);
-        deleteModal.hide();
+        const success = await deleteCartItem(pendingDeleteCartId);
+        if (success) {
+            deleteModal.hide();
+            const row = document.querySelector(`.p-3[data-cart-id="${pendingDeleteCartId}"]`) || document.querySelector(`[data-cart-id="${pendingDeleteCartId}"]`);
+            if (row) {
+                row.remove();
+            }
+            updateCartSummary();
+            showCartToast('상품이 삭제되었습니다.', 'success');
+
+            // 남은 상품이 없으면 새로고침하여 빈 장바구니 표시
+            const remaining = document.querySelectorAll('.p-3[data-cart-id]');
+            if (remaining.length === 0) {
+                setTimeout(() => location.reload(), 300);
+            }
+        }
         pendingDeleteCartId = null;
     });
 
     // 전체 삭제 버튼
     if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
+        clearBtn.addEventListener('click', async () => {
             if (confirm('장바구니의 모든 상품을 비우시겠습니까?')) {
-                const cartIds = Array.from(document.querySelectorAll('[data-cart-id]'))
-                    .map(el => el.getAttribute('data-cart-id'));
+                clearBtn.disabled = true;
+                const rows = Array.from(document.querySelectorAll('.p-3[data-cart-id]'));
+                const cartIds = rows.map(el => el.getAttribute('data-cart-id')).filter(Boolean);
                 
-                Promise.all(cartIds.map(id => deleteCartItem(id)))
-                    .then(() => {
-                        showCartToast('모든 상품이 삭제되었습니다.', 'success');
-                        setTimeout(() => location.reload(), 500);
-                    });
+                try {
+                    await Promise.all(cartIds.map(id => deleteCartItem(id)));
+                    showCartToast('모든 상품이 삭제되었습니다.', 'success');
+                    setTimeout(() => location.reload(), 300);
+                } catch (err) {
+                    showCartToast('삭제 처리 중 오류가 발생했습니다.', 'error');
+                    clearBtn.disabled = false;
+                }
             }
         });
     }
@@ -275,7 +297,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 수량 변경 API 호출
     async function updateCartQuantity(cartId, newQty, triggerBtn) {
-        const row = document.querySelector(`[data-cart-id="${cartId}"]`);
+        const row = document.querySelector(`.p-3[data-cart-id="${cartId}"]`) || document.querySelector(`[data-cart-id="${cartId}"]`);
         if (!row) return;
 
         // 버튼 임시 비활성화 (중복 요청 방지)
