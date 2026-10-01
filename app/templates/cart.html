@@ -188,13 +188,17 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.btn-qty-inc').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             e.preventDefault();
+            
+            // 중복 클릭 방지
+            if (btn.disabled) return;
+            
             const cartId = btn.getAttribute('data-cart-id');
             const row = btn.closest('[data-cart-id]');
             const qtyInput = row.querySelector('input[type="text"]');
             const currentQty = parseInt(qtyInput.value, 10);
             const newQty = currentQty + 1;
 
-            await updateCartQuantity(cartId, newQty);
+            await updateCartQuantity(cartId, newQty, btn);
         });
     });
 
@@ -202,6 +206,10 @@ document.addEventListener('DOMContentLoaded', () => {
     document.querySelectorAll('.btn-qty-dec').forEach(btn => {
         btn.addEventListener('click', async (e) => {
             e.preventDefault();
+            
+            // 중복 클릭 방지
+            if (btn.disabled) return;
+            
             const cartId = btn.getAttribute('data-cart-id');
             const row = btn.closest('[data-cart-id]');
             const qtyInput = row.querySelector('input[type="text"]');
@@ -209,7 +217,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             if (currentQty > 1) {
                 const newQty = currentQty - 1;
-                await updateCartQuantity(cartId, newQty);
+                await updateCartQuantity(cartId, newQty, btn);
             }
         });
     });
@@ -266,7 +274,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 수량 변경 API 호출
-    async function updateCartQuantity(cartId, newQty) {
+    async function updateCartQuantity(cartId, newQty, triggerBtn) {
+        const row = document.querySelector(`[data-cart-id="${cartId}"]`);
+        if (!row) return;
+
+        // 버튼 임시 비활성화 (중복 요청 방지)
+        const incBtn = row.querySelector('.btn-qty-inc');
+        const decBtn = row.querySelector('.btn-qty-dec');
+        if (incBtn) incBtn.disabled = true;
+        if (decBtn) decBtn.disabled = true;
+
         try {
             const response = await fetch(`/cart/${cartId}`, {
                 method: 'PATCH',
@@ -277,8 +294,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
 
             if (response.ok) {
+                // ✅ DOM 즉시 업데이트 (페이지 새로고침 제거)
+                updateItemDisplay(row, data.data);
+                updateCartSummary();
                 showCartToast('수량이 변경되었습니다.', 'success');
-                setTimeout(() => location.reload(), 500);
             } else if (response.status === 400) {
                 showCartToast(data.message || '수량 변경 실패', 'error');
             } else if (response.status === 401) {
@@ -288,9 +307,105 @@ document.addEventListener('DOMContentLoaded', () => {
                 showCartToast('오류가 발생했습니다.', 'error');
             }
         } catch (error) {
-            console.error('오류:', error);
+            console.error('수량 변경 오류:', error);
             showCartToast('네트워크 오류가 발생했습니다.', 'error');
+        } finally {
+            // 버튼 다시 활성화
+            if (incBtn) incBtn.disabled = false;
+            if (decBtn) decBtn.disabled = false;
         }
+    }
+
+    // DOM 업데이트: 해당 상품의 수량과 소계 갱신
+    function updateItemDisplay(row, itemData) {
+        // 수량 업데이트
+        const qtyInput = row.querySelector('input[type="text"]');
+        if (qtyInput) {
+            qtyInput.value = itemData.quantity;
+        }
+
+        // 소계 업데이트 ({{ item.subtotal|locale_currency }} 대체)
+        const subtotalSpan = row.querySelector('.small.fw-bold.text-dark');
+        if (subtotalSpan) {
+            const subtotalFormatted = formatCurrency(itemData.subtotal);
+            subtotalSpan.textContent = `소계: ${subtotalFormatted}`;
+        }
+    }
+
+    // 전체 합계 업데이트: 모든 아이템의 소계를 합산
+    function updateCartSummary() {
+        // 모든 아이템 행 순회
+        const items = document.querySelectorAll('[data-cart-id]');
+        let totalSubtotal = 0;
+
+        items.forEach(row => {
+            const qtyInput = row.querySelector('input[type="text"]');
+            
+            if (qtyInput) {
+                const qty = parseInt(qtyInput.value, 10) || 0;
+                
+                // 가격 찾기: flex-grow-1 div 내의 마지막 fw-bold text-dark div
+                // (사이즈 배지는 제외)
+                const infoDiv = row.querySelector('.flex-grow-1');
+                if (infoDiv) {
+                    // infoDiv 내의 모든 fw-bold text-dark div 중 마지막 것 (가격)
+                    const priceElements = infoDiv.querySelectorAll('.fw-bold.text-dark');
+                    if (priceElements.length > 0) {
+                        const priceElement = priceElements[priceElements.length - 1];
+                        const priceStr = priceElement.textContent.replace(/[^0-9]/g, '');
+                        const price = parseInt(priceStr, 10) || 0;
+                        totalSubtotal += price * qty;
+                    }
+                }
+            }
+        });
+
+        // 우측 요약 패널 업데이트
+        const summaryPanel = document.querySelector('.card.border-0.shadow-sm.rounded-4.p-4');
+        if (summaryPanel) {
+            // 총 상품 금액 업데이트 - 첫 번째 justify-content-between
+            const summaryRows = summaryPanel.querySelectorAll('.d-flex.justify-content-between');
+            if (summaryRows.length > 0) {
+                const subtotalSpan = summaryRows[0].querySelector('.fw-bold');
+                if (subtotalSpan) {
+                    subtotalSpan.textContent = formatCurrency(totalSubtotal);
+                }
+            }
+
+            // 배송비 계산
+            const shipping = totalSubtotal >= 50000 ? 0 : 3000;
+
+            // 배송비 업데이트 - 두 번째 justify-content-between
+            if (summaryRows.length > 1) {
+                const shippingSpan = summaryRows[1].querySelector('.fw-bold');
+                if (shippingSpan) {
+                    if (shipping === 0) {
+                        shippingSpan.textContent = '무료 (5만원 이상)';
+                    } else {
+                        shippingSpan.textContent = formatCurrency(shipping);
+                    }
+                }
+            }
+
+            // 총 결제금액 업데이트 - border-top 있는 row
+            const totalRow = summaryPanel.querySelector('.d-flex.justify-content-between.mb-4.border-top');
+            if (totalRow) {
+                const totalSpan = totalRow.querySelector('.fw-bold.fs-4');
+                if (totalSpan) {
+                    const total = totalSubtotal + shipping;
+                    totalSpan.textContent = formatCurrency(total);
+                }
+            }
+        }
+    }
+
+    // 가격 포맷팅 함수 (원화)
+    function formatCurrency(value) {
+        return new Intl.NumberFormat('ko-KR', {
+            style: 'currency',
+            currency: 'KRW',
+            minimumFractionDigits: 0
+        }).format(value);
     }
 
     // 삭제 API 호출
