@@ -13,6 +13,11 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body class="d-flex flex-column min-vh-100">
+    <!-- 전역 JavaScript 변수: 로그인 상태 설정 -->
+    <script>
+        window.isLoggedIn = {{ 'true' if session.get('user') else 'false' }};
+        window.currentUser = {{ session.get('user')|tojson if session.get('user') else 'null' }};
+    </script>
 
     <!-- 상단 매치 공지 티커 바 -->
     <div class="match-ticker-bar">

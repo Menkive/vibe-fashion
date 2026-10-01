@@ -394,20 +394,24 @@ document.addEventListener('DOMContentLoaded', () => {
             return true;
         } catch (error) {
             console.error('장바구니 담기 통신 오류:', error);
-            // 오프라인/통신 에러 시에도 클라이언트 장바구니에 안전 저장
-            CartManager.addItem(
-                productData,
-                selection.size,
-                selection.quantity,
-                selection.optionId,
-                selection.color
-            );
-            return true;
+            // 네트워크 에러는 로컬 스토리지에 저장하지 않음
+            optionAlertMsg.textContent = '네트워크 오류가 발생했습니다. 다시 시도해 주세요.';
+            optionAlert.classList.remove('d-none');
+            optionAlert.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return false;
         }
     }
 
     // 장바구니 담기 버튼 이벤트
     addCartBtn.addEventListener('click', async () => {
+        // 로그인 상태 먼저 확인
+        if (!window.isLoggedIn) {
+            if (confirm('장바구니 이용을 위해 로그인이 필요합니다.\n로그인 페이지로 이동하시겠습니까?')) {
+                window.location.href = "{{ url_for('auth.login') }}";
+            }
+            return;
+        }
+
         const selection = validateSelection();
         if (!selection) return;
 
@@ -423,6 +427,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 5. 바로 구매하기 액션 (추후 바로구매 주문/결제 프로세스 확장이 용이하도록 구조 분리)
     buyNowBtn.addEventListener('click', async () => {
+        // 로그인 상태 먼저 확인
+        if (!window.isLoggedIn) {
+            if (confirm('주문을 위해 로그인이 필요합니다.\n로그인 페이지로 이동하시겠습니까?')) {
+                window.location.href = "{{ url_for('auth.login') }}";
+            }
+            return;
+        }
+
         const selection = validateSelection();
         if (!selection) return;
 
