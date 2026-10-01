@@ -737,7 +737,7 @@ def cart_update(cart_id):
 
         # 5. 상품 옵션의 재고 확인
         opt_res = db_client.table('product_options') \
-            .select('id, stock, stock_quantity') \
+            .select('id, stock_quantity') \
             .eq('id', option_id) \
             .execute()
 
@@ -745,9 +745,7 @@ def cart_update(cart_id):
             return jsonify({"success": False, "message": "상품 옵션을 찾을 수 없습니다."}), 404
 
         option_row = opt_res.data[0]
-        stock_val = option_row.get('stock')
-        if stock_val is None:
-            stock_val = option_row.get('stock_quantity', 0)
+        stock_val = option_row.get('stock_quantity', 0)
 
         try:
             available_stock = max(0, int(stock_val))
@@ -838,7 +836,7 @@ def cart_delete(cart_id):
     try:
         # 2. cart_id 존재 및 소유권 검증
         cart_res = db_client.table('carts') \
-            .select('id, user_id, product_id, product_name, option_id') \
+            .select('id, user_id, product_id, option_id') \
             .eq('id', cart_id) \
             .execute()
 
@@ -852,7 +850,16 @@ def cart_delete(cart_id):
         if cart_user_id != user_id:
             return jsonify({"success": False, "message": "접근 권한이 없습니다."}), 403
 
-        product_name = cart_item.get('product_name', '상품')
+        # 상품명 조회 (products 테이블에서)
+        product_id = cart_item.get('product_id')
+        prod_res = db_client.table('products') \
+            .select('id, name') \
+            .eq('id', product_id) \
+            .execute()
+        
+        product_name = '상품'
+        if prod_res.data and len(prod_res.data) > 0:
+            product_name = prod_res.data[0].get('name', '상품')
 
         # 3. 장바구니 항목 삭제
         delete_res = db_client.table('carts') \
