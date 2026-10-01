@@ -5,9 +5,40 @@ const CartManager = {
 
     getItems() {
         try {
-            return JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || [];
+            const data = JSON.parse(localStorage.getItem(this.STORAGE_KEY)) || [];
+            
+            // 데이터 유효성 검사 및 정리
+            if (!Array.isArray(data)) {
+                console.warn('[CartManager] 장바구니 데이터가 배열이 아닙니다. 초기화합니다.');
+                localStorage.removeItem(this.STORAGE_KEY);
+                return [];
+            }
+            
+            // 각 항목의 필수 필드 검증
+            const validItems = data.filter(item => {
+                return item && 
+                       typeof item === 'object' &&
+                       item.id && 
+                       item.name && 
+                       typeof item.quantity === 'number' && 
+                       item.quantity > 0;
+            });
+            
+            // corrupted 항목이 있었으면 정리된 데이터 저장
+            if (validItems.length !== data.length) {
+                console.warn(`[CartManager] 손상된 항목 ${data.length - validItems.length}개 제거됨`);
+                if (validItems.length > 0) {
+                    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(validItems));
+                } else {
+                    localStorage.removeItem(this.STORAGE_KEY);
+                }
+            }
+            
+            return validItems;
         } catch (e) {
             console.error('장바구니 로드 실패:', e);
+            // corrupted 데이터 제거
+            localStorage.removeItem(this.STORAGE_KEY);
             return [];
         }
     },
@@ -82,20 +113,59 @@ const CartManager = {
     },
 
     getTotalPrice() {
-        return this.getItems().reduce((total, item) => total + (item.price * item.quantity), 0);
+        try {
+            const items = this.getItems();
+            return items.reduce((total, item) => {
+                const price = parseInt(item.price, 10) || 0;
+                const qty = parseInt(item.quantity, 10) || 0;
+                return total + (Math.max(0, price) * Math.max(0, qty));  // 음수 방지
+            }, 0);
+        } catch (e) {
+            console.error('총 가격 계산 오류:', e);
+            return 0;
+        }
     },
 
     getTotalCount() {
-        return this.getItems().reduce((count, item) => count + item.quantity, 0);
+        try {
+            const items = this.getItems();
+            return items.reduce((count, item) => {
+                const qty = parseInt(item.quantity, 10) || 0;
+                return count + Math.max(0, qty);  // 음수 방지
+            }, 0);
+        } catch (e) {
+            console.error('총 수량 계산 오류:', e);
+            return 0;
+        }
     },
 
     updateBadge() {
-        const count = this.getTotalCount();
-        const badges = document.querySelectorAll('.cart-count');
-        badges.forEach(b => {
-            b.textContent = count;
-            b.style.display = count > 0 ? 'inline-block' : 'none';
-        });
+        try {
+            const count = this.getTotalCount();
+            const badges = document.querySelectorAll('.cart-count');
+            
+            if (badges.length === 0) {
+                console.warn('[CartManager] 장바구니 뱃지를 찾을 수 없습니다.');
+                return;
+            }
+            
+            badges.forEach(b => {
+                // 뱃지 숫자 업데이트
+                b.textContent = Math.max(0, count);  // 음수 방지
+                
+                // 뱃지 표시/숨김 처리
+                if (count > 0) {
+                    b.style.display = 'inline-block';
+                } else {
+                    b.style.display = 'none';
+                    b.textContent = '';  // count = 0일 때 텍스트도 비우기
+                }
+            });
+            
+            console.log(`[CartManager] 뱃지 업데이트: ${count}개`);
+        } catch (e) {
+            console.error('뱃지 업데이트 오류:', e);
+        }
     },
 
     showToast(message) {
@@ -123,13 +193,28 @@ const CartManager = {
             toastEl.classList.remove('show');
             setTimeout(() => toastEl.remove(), 300);
         }, 3500);
+    },
+
+    // 로그아웃 시 호출: localStorage 정리
+    logout() {
+        this.clearCart();
+        console.log('[CartManager] 로그아웃: 장바구니 데이터 정리 완료');
     }
 };
 
 // 페이지 로드 시 뱃지 초기화 및 다크모드 설정
 document.addEventListener('DOMContentLoaded', () => {
-    CartManager.updateBadge();
+    console.log('[Store] 페이지 초기화 시작');
+    
+    // 장바구니 뱃지 초기화
+    setTimeout(() => {
+        CartManager.updateBadge();
+    }, 100);  // 약간의 지연으로 DOM 안정화 보장
+    
+    // 다크모드 초기화
     initTheme();
+    
+    console.log('[Store] 페이지 초기화 완료');
 });
 
 // 다크모드 토글 기능
