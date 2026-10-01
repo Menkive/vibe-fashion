@@ -152,31 +152,26 @@
 </div>
 
 <!-- 삭제 확인 모달 -->
-<div class="modal fade" id="deleteConfirmModal" tabindex="-1">
+<div class="modal fade" id="deleteConfirmModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 rounded-4">
             <div class="modal-header bg-light border-0 rounded-top-4">
                 <h5 class="modal-title fw-bold">상품 삭제</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body py-4">
-                <div class="d-flex align-items-center gap-3 mb-3">
-                    <img id="deleteModalProductImage" src="" alt="상품" class="rounded-3" style="width: 60px; height: 60px; object-fit: cover;">
-                    <div class="flex-grow-1">
-                        <h6 id="deleteModalProductName" class="fw-bold mb-1">상품명</h6>
-                        <small id="deleteModalProductSize" class="text-muted">사이즈 정보</small>
-                    </div>
-                </div>
-                <p class="text-center text-secondary mb-0">이 상품을 장바구니에서 삭제하시겠습니까?</p>
+            <div class="modal-body p-4 text-center">
+                <img id="deleteModalProductImage" src="" alt="상품 이미지" class="rounded-3 mb-3" style="width: 150px; height: 150px; object-fit: cover;">
+                <h6 class="fw-bold mb-2" id="deleteModalProductName">상품명</h6>
+                <p class="small text-muted mb-4" id="deleteModalProductSize">상품 정보</p>
+                <p class="text-muted mb-0">정말로 이 상품을 장바구니에서 삭제하시겠습니까?</p>
             </div>
-            <div class="modal-footer border-0 gap-2">
+            <div class="modal-footer border-0">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">취소</button>
-                <button type="button" class="btn btn-danger" id="btn-confirm-delete">삭제</button>
+                <button type="button" class="btn btn-danger" id="btn-confirm-delete">삭제하기</button>
             </div>
         </div>
     </div>
 </div>
-
 {% endblock %}
 
 {% block scripts %}
@@ -267,7 +262,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (checkoutBtn && !checkoutBtn.disabled) {
         checkoutBtn.addEventListener('click', () => {
             alert('주문 기능은 현재 개발 중입니다.');
-            // window.location.href = '/order/checkout';
         });
     }
 
@@ -347,213 +341,6 @@ document.addEventListener('DOMContentLoaded', () => {
         
         container.addEventListener('hidden.bs.toast', () => container.remove());
     }
-});
-</script>
-{% endblock %}
-
-        if (items.length === 0) {
-            container.innerHTML = '';
-            emptyView.classList.remove('d-none');
-            subtotalEl.textContent = '0원';
-            totalEl.textContent = '0원';
-            checkoutBtn.disabled = true;
-            return;
-        }
-
-        emptyView.classList.add('d-none');
-        checkoutBtn.disabled = false;
-
-        let html = '';
-        let subtotal = 0;
-
-        items.forEach((item, index) => {
-            const itemTotal = item.price * item.quantity;
-            subtotal += itemTotal;
-
-            html += `
-                <div class="p-3 border-bottom d-flex align-items-center gap-3" data-item-index="${index}" data-cart-id="${item.cart_id || ''}">
-                    <img src="${item.image_url}" alt="${item.name}" class="rounded-3" style="width: 80px; height: 80px; object-fit: cover;">
-                    <div class="flex-grow-1">
-                        <div class="small text-muted mb-1">${item.category || ''}</div>
-                        <h6 class="fw-bold mb-1">${item.name}</h6>
-                        <div class="small text-secondary mb-2">선택 사이즈: <strong class="badge bg-light text-dark border">${item.size}</strong></div>
-                        <div class="fw-bold text-dark">${item.price.toLocaleString()}원</div>
-                    </div>
-                    <div class="d-flex flex-column align-items-end gap-2">
-                        <div class="input-group input-group-sm" style="width: 110px;">
-                            <button class="btn btn-outline-secondary btn-qty-dec" data-index="${index}"><i class="bi bi-dash"></i></button>
-                            <input type="text" class="form-control text-center bg-white" value="${item.quantity}" readonly>
-                            <button class="btn btn-outline-secondary btn-qty-inc" data-index="${index}"><i class="bi bi-plus"></i></button>
-                        </div>
-                        <button class="btn btn-sm btn-link text-danger p-0 text-decoration-none btn-remove-item" data-index="${index}">
-                            <i class="bi bi-x-circle me-1"></i> 삭제
-                        </button>
-                    </div>
-                </div>
-            `;
-        });
-
-        container.innerHTML = html;
-
-        // 배송비 계산: 50,000원 이상 무료, 미만 3,000원
-        const shipping = subtotal >= 50000 || subtotal === 0 ? 0 : 3000;
-        const total = subtotal + shipping;
-
-        subtotalEl.textContent = subtotal.toLocaleString() + '원';
-        shippingEl.textContent = shipping === 0 ? '무료 (5만원 이상)' : shipping.toLocaleString() + '원';
-        totalEl.textContent = total.toLocaleString() + '원';
-
-        // 수량 조절 버튼 바인딩
-        document.querySelectorAll('.btn-qty-inc').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const idx = parseInt(btn.getAttribute('data-index'), 10);
-                CartManager.updateQuantity(idx, items[idx].quantity + 1);
-                renderCart();
-            });
-        });
-
-        document.querySelectorAll('.btn-qty-dec').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const idx = parseInt(btn.getAttribute('data-index'), 10);
-                CartManager.updateQuantity(idx, items[idx].quantity - 1);
-                renderCart();
-            });
-        });
-
-        // 삭제 버튼 바인딩
-        document.querySelectorAll('.btn-remove-item').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                const idx = parseInt(btn.getAttribute('data-index'), 10);
-                const item = items[idx];
-                
-                // 모달에 상품 정보 표시
-                document.getElementById('deleteModalProductImage').src = item.image_url;
-                document.getElementById('deleteModalProductName').textContent = item.name;
-                document.getElementById('deleteModalProductSize').textContent = `${item.category} - ${item.size}`;
-                
-                // 삭제 정보 저장
-                pendingDeleteIndex = idx;
-                pendingDeleteCartId = item.cart_id || null;
-                
-                // 모달 표시
-                deleteModal.show();
-            });
-        });
-    }
-
-    // 삭제 확인 버튼 핸들러
-    deleteConfirmBtn.addEventListener('click', async () => {
-        if (pendingDeleteIndex === null) return;
-
-        const items = CartManager.getItems();
-        const item = items[pendingDeleteIndex];
-
-        // cart_id가 있으면 서버 API 호출, 없으면 로컬 스토리지만 삭제
-        if (pendingDeleteCartId) {
-            try {
-                // DELETE 요청
-                const response = await fetch(`/cart/${pendingDeleteCartId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
-                const data = await response.json();
-
-                if (response.ok) {
-                    // 성공: 로컬 스토리지에서 아이템 제거
-                    CartManager.removeItem(pendingDeleteIndex);
-                    renderCart();
-                    deleteModal.hide();
-                    
-                    // 토스트 메시지 표시
-                    showCartToast(`'${item.name}'이(가) 장바구니에서 삭제되었습니다.`, 'success');
-                    
-                    pendingDeleteIndex = null;
-                    pendingDeleteCartId = null;
-                } else {
-                    // 에러 처리
-                    if (response.status === 401) {
-                        showCartToast('로그인이 필요합니다.', 'error');
-                        window.location.href = '/auth/login';
-                    } else if (response.status === 403) {
-                        showCartToast('접근 권한이 없습니다.', 'error');
-                    } else if (response.status === 404) {
-                        // 서버에는 없지만 로컬 스토리지에는 있는 경우 로컬만 삭제
-                        CartManager.removeItem(pendingDeleteIndex);
-                        renderCart();
-                        deleteModal.hide();
-                    } else {
-                        showCartToast(data.message || '삭제 실패', 'error');
-                    }
-                }
-            } catch (error) {
-                console.error('❌ 삭제 요청 오류:', error);
-                showCartToast('네트워크 오류가 발생했습니다.', 'error');
-            }
-        } else {
-            // cart_id가 없는 경우 로컬 스토리지만 삭제
-            CartManager.removeItem(pendingDeleteIndex);
-            renderCart();
-            deleteModal.hide();
-            showCartToast(`'${item.name}'이(가) 장바구니에서 삭제되었습니다.`, 'success');
-            
-            pendingDeleteIndex = null;
-        }
-    });
-
-    clearBtn.addEventListener('click', () => {
-        if (confirm('장바구니의 모든 상품을 비우시겠습니까?')) {
-            CartManager.clearCart();
-            renderCart();
-        }
-    });
-
-    checkoutBtn.addEventListener('click', () => {
-        const items = CartManager.getItems();
-        if (items.length === 0) {
-            alert('장바구니에 담긴 상품이 없습니다.');
-            return;
-        }
-        alert(`주문이 정상적으로 접수되었습니다!\n총 결제금액: ${totalEl.textContent}\n양산종합운동장 현장 수령 또는 안심 배송이 진행됩니다.`);
-        CartManager.clearCart();
-        renderCart();
-    });
-
-    // 토스트 메시지 표시 함수
-    function showCartToast(message, type = 'info') {
-        const toastHTML = `
-            <div class="toast align-items-center text-white bg-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} border-0" role="alert" aria-live="assertive" aria-atomic="true">
-                <div class="d-flex">
-                    <div class="toast-body">
-                        ${message}
-                    </div>
-                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
-                </div>
-            </div>
-        `;
-        
-        const toastContainer = document.createElement('div');
-        toastContainer.className = 'toast-container position-fixed bottom-0 end-0 p-3';
-        toastContainer.innerHTML = toastHTML;
-        document.body.appendChild(toastContainer);
-        
-        const toast = new bootstrap.Toast(toastContainer.querySelector('.toast'));
-        toast.show();
-        
-        // 토스트 제거 후 컨테이너 삭제
-        toastContainer.addEventListener('hidden.bs.toast', () => {
-            toastContainer.remove();
-        });
-    }
-
-    // 초기 렌더링
-    renderCart();
-});
-</script>
-{% endblock %}
-    renderCart();
 });
 </script>
 {% endblock %}
