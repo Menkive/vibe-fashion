@@ -32,6 +32,26 @@ def get_supabase_client() -> Client | None:
         return None
 
 
+def get_supabase_admin_client() -> Client | None:
+    """
+    환경 변수에서 SUPABASE_SERVICE_ROLE_KEY(또는 SUPABASE_SERVICE_KEY)를 읽어
+    관리자 권한의 Supabase 클라이언트를 초기화하고 반환합니다.
+    (회원 탈퇴 등 Admin API 작업에 사용)
+    """
+    load_dotenv()
+    url = os.getenv('SUPABASE_URL')
+    service_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_SERVICE_KEY')
+
+    if not url or not service_key:
+        return None
+
+    try:
+        return create_client(url, service_key)
+    except Exception as e:
+        print(f"[Supabase Admin Client Error] 관리자 클라이언트 생성 실패: {e}", file=sys.stderr)
+        return None
+
+
 def fetch_all_products():
     """
     Supabase products 테이블과 연결을 시도하고,
@@ -369,10 +389,178 @@ def logout():
     return redirect(url_for('main.index'))
 
 
-@main_bp.route('/mypage')
+@main_bp.route('/mypage', methods=['GET', 'POST'])
 def mypage():
-    """마이페이지 라우트 (로그인 필요)"""
-    if not session.get('user') and not session.get('user_id'):
+    """
+    마이페이지 라우트 (로그인 필요):
+    - profiles 테이블에서 로그인 사용자 정보 조회하여 내 정보 탭에 표시
+    - POST 요청 시 내 정보(이름, 배송지, 전화번호) 수정 처리
+    - Bootstrap 5 탭 구조 (내 정보 / 주문 내역 / 환불 내역)
+    """
+    user_info = session.get('user') or {}
+    user_id = user_info.get('id') or session.get('user_id')
+    user_email = user_info.get('email') or session.get('email')
+
+    if not user_id:
         return redirect(url_for('main.login', error='login_required'))
-    return render_template('mypage.html')
+
+    admin_client = get_supabase_admin_client()
+    anon_client = get_supabase_client()
+    db_client = admin_client or anon_client
+
+    # POST: 내 정보 수정 처리
+    if request.method == 'POST':
+        full_name = request.form.get('full_name', '').strip()
+        phone_number = request.form.get('phone_number', '').strip()
+        shipping_address = request.form.get('shipping_address', '').strip()
+
+        update_data = {
+            "updated_at": "now()"
+        }
+        if full_name:
+            update_data["full_name"] = full_name
+        if phone_number is not None:
+            update_data["phone_number"] = phone_number
+        if shipping_address is not None:
+            update_data["shipping_address"] = shipping_address
+
+        if db_client:
+            try:
+                db_client.table('profiles').update(update_data).eq('id', user_id).execute()
+                # 세션 내 사용자 정보도 동기화
+                if 'user' in session:
+                    if full_name:
+                        session['user']['name'] = full_name
+                    if phone_number is not None:
+                        session['user']['phone'] = phone_number
+                    session.modified = True
+            except Exception as e:
+                logger.error(f"프로필 업데이트 오류: {e}")
+                return redirect(url_for('main.mypage', error='update_failed'))
+
+        return redirect(url_for('main.mypage', success='profile_updated'))
+
+    # GET: profiles 테이블에서 사용자 최신 프로필 정보 조회
+    profile_data = {}
+    if db_client:
+        try:
+            res = db_client.table('profiles').select('*').eq('id', user_id).execute()
+            if res.data and len(res.data) > 0:
+                profile_data = res.data[0]
+        except Exception as e:
+            logger.warning(f"마이페이지 프로필 조회 오류: {e}")
+
+    # DB에 아직 프로필이 없거나 일부 누락된 경우 세션 기본값으로 보완
+    if not profile_data:
+        profile_data = {
+            "id": user_id,
+            "email": user_email,
+            "full_name": user_info.get('name') or (user_email.split('@')[0] if user_email else '회원'),
+            "phone_number": user_info.get('phone') or '',
+            "shipping_address": '',
+            "avatar_url": user_info.get('avatar_url')
+        }
+    else:
+        # 이메일 또는 이름이 비어있으면 세션 정보로 보완
+        if not profile_data.get('email'):
+            profile_data['email'] = user_email
+        if not profile_data.get('full_name'):
+            profile_data['full_name'] = user_info.get('name') or '회원'
+
+    return render_template('mypage.html', profile=profile_data)
+
+
+@main_bp.route('/withdraw', methods=['POST'])
+def withdraw():
+    """
+    회원 탈퇴 처리 라우트:
+    현재 로그인된 사용자의 세션 및 데이터베이스 계정을 안전하게 삭제하고 탈퇴 완료 처리합니다.
+    (카카오 연동 회원인 경우 카카오 연결 끊기 API 호출 포함)
+    """
+    user_info = session.get('user') or {}
+    user_id = user_info.get('id') or session.get('user_id')
+    user_email = user_info.get('email') or session.get('email')
+    provider = user_info.get('provider')
+    kakao_access_token = session.get('kakao_access_token')
+
+    if not user_id:
+        return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
+
+    admin_client = get_supabase_admin_client()
+    anon_client = get_supabase_client()
+
+    # 1. 소셜 로그인(네이버/카카오 등 가상 UUID 포함)인 경우와 Supabase Auth 가입 회원 구분
+    is_social_custom = (provider in ['naver', 'kakao']) or (isinstance(user_id, str) and (user_id.startswith('naver-') or user_id.startswith('kakao-')))
+    is_kakao = (provider == 'kakao') or (isinstance(user_id, str) and user_id.startswith('kakao-'))
+
+    try:
+        # 1-1. 카카오 로그인 회원인 경우 카카오 계정 연결 끊기(탈퇴) API 호출
+        if is_kakao:
+            try:
+                import httpx
+                # 1순위: 세션에 저장된 kakao_access_token으로 연결 끊기
+                if kakao_access_token:
+                    unlink_res = httpx.post(
+                        "https://kapi.kakao.com/v1/user/unlink",
+                        headers={"Authorization": f"Bearer {kakao_access_token}"},
+                        timeout=5.0
+                    )
+                    logger.info(f"카카오 unlink(토큰) 응답: {unlink_res.status_code}")
+                else:
+                    # 2순위: Admin Key가 환경변수에 설정되어 있다면 Target ID로 연결 끊기
+                    kakao_admin_key = os.getenv("KAKAO_ADMIN_KEY")
+                    raw_target_id = user_id.replace('kakao-', '') if isinstance(user_id, str) else ''
+                    if kakao_admin_key and raw_target_id.isdigit():
+                        unlink_res = httpx.post(
+                            "https://kapi.kakao.com/v1/user/unlink",
+                            headers={"Authorization": f"KakaoAK {kakao_admin_key}"},
+                            data={"target_id_type": "user_id", "target_id": int(raw_target_id)},
+                            timeout=5.0
+                        )
+                        logger.info(f"카카오 unlink(어드민키) 응답: {unlink_res.status_code}")
+            except Exception as ke:
+                logger.warning(f"카카오 연결 끊기 API 호출 중 예외: {ke}")
+
+        # 2. DB에서 프로필 및 관련 데이터 삭제
+        if admin_client:
+            try:
+                # profiles 테이블에서 삭제 시도
+                admin_client.table('profiles').delete().eq('id', user_id).execute()
+            except Exception as pe:
+                logger.warning(f"프로필 삭제 시도 중 알림: {pe}")
+
+            # Supabase Auth 회원이면 Auth 계정 삭제 (admin API)
+            if not is_social_custom:
+                try:
+                    admin_client.auth.admin.delete_user(user_id)
+                except Exception as ae:
+                    logger.warning(f"Supabase auth admin delete_user 실패: {ae}")
+        elif anon_client:
+            # 관리자 클라이언트가 없을 경우 anon 클라이언트로 시도
+            try:
+                anon_client.table('profiles').delete().eq('id', user_id).execute()
+            except Exception as pe:
+                logger.warning(f"프로필 삭제 시도 중 알림: {pe}")
+
+        # Supabase 세션 로그아웃 처리
+        if anon_client:
+            try:
+                anon_client.auth.sign_out()
+            except Exception:
+                pass
+
+        # Flask 세션 전체 초기화
+        session.clear()
+
+        return jsonify({
+            "success": True,
+            "message": "회원 탈퇴 및 카카오 연동 해제가 안전하게 완료되었습니다. 그동안 양산시민축구단을 응원해 주셔서 감사합니다."
+        })
+
+    except Exception as e:
+        logger.error(f"회원 탈퇴 처리 중 오류 발생: {e}")
+        return jsonify({
+            "success": False,
+            "message": "회원 탈퇴 처리 중 오류가 발생했습니다. 고객센터로 문의해 주세요."
+        }), 500
 

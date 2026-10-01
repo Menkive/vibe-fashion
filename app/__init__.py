@@ -45,6 +45,22 @@ def create_app():
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
 
+    # 전역 요청 가드: 약관 동의를 완료하지 않은 소셜 로그인 회원은 /auth/social-signup 외 다른 페이지 접근 제한
+    from flask import request as flask_req, redirect, url_for, session as flask_sess
+    @app.before_request
+    def check_pending_social_signup():
+        if flask_sess.get('pending_social_signup'):
+            allowed_paths = [
+                '/auth/social-signup',
+                '/auth/social-signup/complete',
+                '/auth/logout',
+                '/logout',
+                '/static/'
+            ]
+            req_path = flask_req.path
+            if not any(req_path.startswith(p) for p in allowed_paths):
+                return redirect(url_for('auth.social_signup_step'))
+
     return app
 
 # Gunicorn에서 'app' 패키지 자체를 import할 때 'app' 속성을 찾을 수 있도록 기본 인스턴스 생성

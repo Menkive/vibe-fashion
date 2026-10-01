@@ -5,7 +5,7 @@ import sys
 import logging
 from functools import wraps
 from flask import Blueprint, render_template, request, session, redirect, url_for, jsonify
-from app.routes.main import get_supabase_client
+from app.routes.main import get_supabase_client, get_supabase_admin_client
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +293,7 @@ def google_login():
     """
     Google OAuth 소셜 로그인 시작:
     Supabase Auth 내장 Provider ('google')를 호출하여 Google OAuth 동의 화면으로 리다이렉트합니다.
+    탈퇴 또는 로그아웃 후 다시 로그인할 때 계정 선택 화면이 항상 나타나도록 prompt='select_account'를 지정합니다.
     """
     base_url = get_current_base_url()
     callback_url = f"{base_url}/auth/callback"
@@ -306,7 +307,10 @@ def google_login():
         res = supabase.auth.sign_in_with_oauth({
             "provider": "google",
             "options": {
-                "redirect_to": callback_url
+                "redirect_to": callback_url,
+                "query_params": {
+                    "prompt": "select_account"
+                }
             }
         })
         if res and res.url:
@@ -378,8 +382,44 @@ def oauth_callback():
                     (user.email.split('@')[0] if user.email else f"{provider}회원")
                 )
 
+                admin_client = get_supabase_admin_client()
+
+                # 회원탈퇴 후 재가입이거나 신규 가입인지 검증:
+                # 1) user_metadata의 terms_agreed 확인
+                # 2) DB profiles 테이블에 실제로 등록된 회원인지 확인
+                is_terms_agreed = bool(user_metadata.get('terms_agreed'))
+                is_profile_registered = False
+
+                if admin_client:
+                    try:
+                        p_res = admin_client.table('profiles').select('id').eq('id', str(user.id)).execute()
+                        if p_res.data and len(p_res.data) > 0:
+                            is_profile_registered = True
+                    except Exception as pe:
+                        logger.warning(f"프로필 조회 알림: {pe}")
+
+                # 약관 동의를 하지 않았거나 탈퇴했던 회원이면 -> 임시 가입 대기 세션만 발급하고 가입 페이지로 강제 리다이렉트
+                if not is_terms_agreed or not is_profile_registered:
+                    # 정식 session['user']는 발급하지 않고, 가입 화면에 필요한 최소 프로필 정보만 pending 세션에 저장
+                    session['pending_social_signup'] = True
+                    session['pending_user_id'] = str(user.id)
+                    session['pending_profile'] = {
+                        "id": str(user.id),
+                        "email": user.email or f"{provider}_{str(user.id)[:8]}@yangsanfc.local",
+                        "name": user_name,
+                        "phone": user_metadata.get('phone', ''),
+                        "provider": provider,
+                        "avatar_url": user_metadata.get('avatar_url') or user_metadata.get('picture', '')
+                    }
+                    if auth_res.session:
+                        session['access_token'] = auth_res.session.access_token
+
+                    logger.info(f"신규/재가입 회원 약관 동의 단계로 이동 ({provider}): {user_name} ({user.id})")
+                    return redirect(url_for('auth.social_signup_step'))
+
+                # 기존에 정상 가입되어 있는 회원인 경우에만 정식 로그인 세션 발급
                 session['user_id'] = str(user.id)
-                session['email'] = user.email or f"{provider}_{user.id[:8]}@yangsanfc.local"
+                session['email'] = user.email or f"{provider}_{str(user.id)[:8]}@yangsanfc.local"
                 session['user'] = {
                     "id": str(user.id),
                     "email": session['email'],
@@ -395,6 +435,7 @@ def oauth_callback():
 
                 session_established = True
                 logger.info(f"Supabase OAuth 로그인 성공 ({provider}): {user_name} ({user.id})")
+
         except Exception as se:
             logger.warning(f"Supabase exchange_code_for_session 실패: {se}")
 
@@ -499,6 +540,96 @@ def oauth_callback():
         if error_detail:
             redirect_params['error_detail'] = error_detail
         return redirect(url_for('main.login', **redirect_params))
+
+
+# ==============================================================================
+# 3-1-2. 소셜 로그인 회원가입 추가 정보 및 약관 동의 단계 (GET/POST /auth/social-signup)
+# ==============================================================================
+
+@auth_bp.route('/social-signup', methods=['GET'])
+def social_signup_step():
+    """소셜 로그인 후 최초 가입 또는 재가입 시 약관 동의 및 추가 정보 입력 페이지"""
+    profile = session.get('pending_profile') or session.get('user')
+    if not profile or not session.get('pending_social_signup'):
+        return redirect(url_for('main.login'))
+
+    return render_template('auth/social_signup.html', profile=profile)
+
+
+@auth_bp.route('/social-signup/complete', methods=['POST'])
+def complete_social_signup():
+    """소셜 로그인 회원가입 완료 처리 (약관 동의 및 전화번호 저장)"""
+    profile = session.get('pending_profile') or session.get('user')
+    user_id = session.get('pending_user_id') or session.get('user_id')
+    if not profile or not user_id:
+        return jsonify({"success": False, "message": "인증 세션이 만료되었습니다. 다시 로그인해 주세요."}), 401
+
+    data = request.get_json(silent=True) or request.form
+    terms = data.get('terms')
+    privacy = data.get('privacy')
+    phone = (data.get('phone') or '').strip()
+
+    if not terms or not privacy:
+        return jsonify({"success": False, "message": "이용약관 및 개인정보 처리방침에 모두 동의해야 합니다."}), 400
+
+    admin_client = get_supabase_admin_client()
+    anon_client = get_supabase_client()
+    provider = profile.get('provider', 'google')
+
+    try:
+        # 1. Supabase Auth user_metadata 업데이트 (terms_agreed: True, phone)
+        if admin_client:
+            try:
+                current_user = admin_client.auth.admin.get_user_by_id(user_id)
+                current_meta = dict(current_user.user.user_metadata or {})
+                current_meta['terms_agreed'] = True
+                if phone:
+                    current_meta['phone'] = phone
+                admin_client.auth.admin.update_user_by_id(user_id, {
+                    'user_metadata': current_meta
+                })
+            except Exception as ue:
+                logger.warning(f"user_metadata 업데이트 알림: {ue}")
+
+        # 2. profiles 테이블에 프로필 저장/복구 (upsert)
+        profile_record = {
+            "id": user_id,
+            "email": profile.get('email'),
+            "full_name": profile.get('name'),
+            "avatar_url": profile.get('avatar_url'),
+            "phone_number": phone or None,
+            "role": "customer",
+            "grade": "BRONZE"
+        }
+
+        db_client = admin_client or anon_client
+        if db_client:
+            try:
+                db_client.table('profiles').upsert(profile_record).execute()
+            except Exception as pe:
+                logger.warning(f"프로필 upsert 알림: {pe}")
+
+        # 3. 비로소 정식 세션 등록 및 pending 플래그 정리
+        profile['phone'] = phone
+        profile['terms_agreed'] = True
+
+        session['user_id'] = user_id
+        session['email'] = profile.get('email')
+        session['user'] = profile
+
+        session.pop('pending_social_signup', None)
+        session.pop('pending_profile', None)
+        session.pop('pending_user_id', None)
+
+        return jsonify({
+            "success": True,
+            "message": f"{profile.get('name')}님, 양산시민축구단 공식 스토어 회원이 되신 것을 환영합니다!",
+            "redirect_url": url_for('main.index')
+        })
+
+    except Exception as e:
+        logger.error(f"소셜 회원가입 완료 오류: {e}")
+        return jsonify({"success": False, "message": f"회원가입 처리 중 오류가 발생했습니다: {str(e)}"}), 500
 
 
 # ==============================================================================
@@ -628,8 +759,70 @@ def naver_callback():
         phone = response_data.get("mobile") or ""
         avatar_url = response_data.get("profile_image") or ""
 
-        # 3. Flask 세션에 사용자 정보 저장 (기존 Supabase Auth 및 카카오 세션 규격과 100% 일치)
-        user_uuid = f"naver-{naver_id}"
+        # Supabase auth.users 및 profiles 테이블에 맞는 실제 UUID 연동
+        admin_client = get_supabase_admin_client()
+        auth_user_id = None
+
+        if admin_client:
+            # 1) 기존 auth.users 계정이 있는지 확인 (email 또는 metadata naver_id 기준)
+            try:
+                existing_users = admin_client.auth.admin.list_users()
+                for u in getattr(existing_users, 'users', existing_users if isinstance(existing_users, list) else []):
+                    u_meta = getattr(u, 'user_metadata', {}) or {}
+                    if u_meta.get('naver_id') == naver_id or (email and u.email == email):
+                        auth_user_id = str(u.id)
+                        break
+            except Exception as le:
+                logger.warning(f"기존 네이버 auth.users 조회 알림: {le}")
+
+            # 2) auth.users가 없다면 Supabase admin으로 생성
+            if not auth_user_id:
+                try:
+                    new_auth_user = admin_client.auth.admin.create_user({
+                        "email": email,
+                        "email_confirm": True,
+                        "user_metadata": {
+                            "full_name": name,
+                            "provider": "naver",
+                            "naver_id": naver_id,
+                            "avatar_url": avatar_url,
+                            "phone": phone
+                        }
+                    })
+                    if new_auth_user and new_auth_user.user:
+                        auth_user_id = str(new_auth_user.user.id)
+                except Exception as ce:
+                    logger.warning(f"네이버 auth.users 신규 생성 알림: {ce}")
+
+        user_uuid = auth_user_id or f"naver-{naver_id}"
+
+        # DB profiles 테이블에 실제로 등록된 회원인지 확인
+        is_profile_registered = False
+        if admin_client:
+            try:
+                p_res = admin_client.table('profiles').select('id').eq('id', user_uuid).execute()
+                if p_res.data and len(p_res.data) > 0:
+                    is_profile_registered = True
+            except Exception as pe:
+                logger.warning(f"네이버 프로필 조회 알림: {pe}")
+
+        # 신규 회원이거나 탈퇴 후 재가입인 경우 -> 약관 동의 및 추가 정보 입력(회원가입 단계)으로 이동
+        if not is_profile_registered:
+            session['pending_social_signup'] = True
+            session['pending_user_id'] = user_uuid
+            session['pending_profile'] = {
+                "id": user_uuid,
+                "email": email,
+                "name": name,
+                "phone": phone,
+                "provider": "naver",
+                "avatar_url": avatar_url
+            }
+            session['naver_access_token'] = access_token
+            logger.info(f"네이버 신규/재가입 회원 약관 동의 단계로 이동: {name} ({user_uuid})")
+            return redirect(url_for('auth.social_signup_step'))
+
+        # 3. 기존 등록 회원인 경우 정식 세션 등록 및 로그인 완료
         session['user_id'] = user_uuid
         session['email'] = email
         session['user'] = {
@@ -868,3 +1061,96 @@ def reset_password():
         if is_json:
             return jsonify({"success": False, "message": "비밀번호 재설정에 실패했습니다. 잠시 후 다시 시도해 주세요."}), 400
         return redirect(url_for('auth.reset_password', error='reset_failed'))
+
+
+# ==============================================================================
+# 7. 회원 탈퇴 (POST /auth/withdraw)
+# ==============================================================================
+
+@auth_bp.route('/withdraw', methods=['POST'])
+def withdraw():
+    """
+    회원 탈퇴 처리 라우트:
+    로그인된 회원의 Supabase Auth 계정 및 프로필 데이터를 삭제하고 세션을 초기화합니다.
+    (카카오 연동 회원인 경우 카카오 연결 끊기 API 호출 포함)
+    """
+    user_info = session.get('user') or {}
+    user_id = user_info.get('id') or session.get('user_id')
+    provider = user_info.get('provider')
+    kakao_access_token = session.get('kakao_access_token')
+    is_json = request.is_json or bool(request.get_json(silent=True))
+
+    if not user_id:
+        if is_json:
+            return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
+        return redirect(url_for('main.login', error='login_required'))
+
+    admin_client = get_supabase_admin_client()
+    anon_client = get_supabase_client()
+    is_social_custom = (provider in ['naver', 'kakao']) or (isinstance(user_id, str) and (user_id.startswith('naver-') or user_id.startswith('kakao-')))
+    is_kakao = (provider == 'kakao') or (isinstance(user_id, str) and user_id.startswith('kakao-'))
+
+    try:
+        # 카카오 연동 회원의 경우 카카오 연결 끊기(/v1/user/unlink) 호출
+        if is_kakao:
+            try:
+                import httpx
+                if kakao_access_token:
+                    unlink_res = httpx.post(
+                        "https://kapi.kakao.com/v1/user/unlink",
+                        headers={"Authorization": f"Bearer {kakao_access_token}"},
+                        timeout=5.0
+                    )
+                    logger.info(f"카카오 unlink(토큰) 응답: {unlink_res.status_code}")
+                else:
+                    kakao_admin_key = os.getenv("KAKAO_ADMIN_KEY")
+                    raw_target_id = user_id.replace('kakao-', '') if isinstance(user_id, str) else ''
+                    if kakao_admin_key and raw_target_id.isdigit():
+                        unlink_res = httpx.post(
+                            "https://kapi.kakao.com/v1/user/unlink",
+                            headers={"Authorization": f"KakaoAK {kakao_admin_key}"},
+                            data={"target_id_type": "user_id", "target_id": int(raw_target_id)},
+                            timeout=5.0
+                        )
+                        logger.info(f"카카오 unlink(어드민키) 응답: {unlink_res.status_code}")
+            except Exception as ke:
+                logger.warning(f"카카오 연결 끊기 예외: {ke}")
+
+        # DB에서 프로필 및 관련 데이터 삭제
+        if admin_client:
+            try:
+                admin_client.table('profiles').delete().eq('id', user_id).execute()
+            except Exception as pe:
+                logger.warning(f"프로필 삭제 시도 중 알림: {pe}")
+
+            # Supabase Auth 계정 삭제
+            if not is_social_custom:
+                try:
+                    admin_client.auth.admin.delete_user(user_id)
+                except Exception as ae:
+                    logger.warning(f"Supabase auth admin delete_user 실패: {ae}")
+        elif anon_client:
+            try:
+                anon_client.table('profiles').delete().eq('id', user_id).execute()
+            except Exception as pe:
+                logger.warning(f"프로필 삭제 시도 중 알림: {pe}")
+
+        # Supabase 세션 로그아웃
+        if anon_client:
+            try:
+                anon_client.auth.sign_out()
+            except Exception:
+                pass
+
+        session.clear()
+
+        msg = "회원 탈퇴 및 카카오 연동 해제가 완료되었습니다. 양산시민축구단을 찾아주셔서 감사했습니다."
+        if is_json:
+            return jsonify({"success": True, "message": msg})
+        return redirect(url_for('main.index'))
+
+    except Exception as e:
+        logger.error(f"회원 탈퇴 오류: {e}")
+        if is_json:
+            return jsonify({"success": False, "message": "회원 탈퇴 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."}), 500
+        return redirect(url_for('main.mypage', error='withdraw_failed'))

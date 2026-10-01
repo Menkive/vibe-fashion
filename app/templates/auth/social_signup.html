@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+
+{% block title %}회원가입 약관 동의 | 양산시민축구단 공식 온라인 스토어{% endblock %}
+
+{% block content %}
+<section class="auth-section py-5">
+    <div class="container py-3">
+        <div class="row justify-content-center">
+            <div class="col-12 col-sm-10 col-md-8 col-lg-6 col-xl-5">
+                <div class="card auth-card shadow-lg border-0">
+                    <div class="card-body p-4 p-sm-5">
+                        <!-- 상단 로고 및 타이틀 -->
+                        <div class="text-center mb-4">
+                            <img src="{{ url_for('static', filename='images/yangsan-fc-symbol.png') }}"
+                                 alt="양산시민축구단 심볼 로고"
+                                 class="auth-brand-logo mb-3">
+                            {% if profile.provider == 'google' %}
+                            <span class="badge bg-light text-dark border mb-2 px-3 py-1 fw-semibold">
+                                <i class="bi bi-google text-danger me-1"></i> Google 계정 연동
+                            </span>
+                            {% elif profile.provider == 'naver' %}
+                            <span class="badge mb-2 px-3 py-1 fw-semibold" style="background-color: #03C75A; color: #ffffff;">
+                                <i class="bi bi-check-circle-fill me-1"></i> 네이버 계정 연동
+                            </span>
+                            {% elif profile.provider == 'kakao' %}
+                            <span class="badge mb-2 px-3 py-1 fw-semibold" style="background-color: #FEE500; color: #191919;">
+                                <i class="bi bi-chat-fill me-1"></i> 카카오 계정 연동
+                            </span>
+                            {% endif %}
+                            <h3 class="fw-bold text-dark mb-1">스토어 회원가입 완료</h3>
+                            <p class="text-muted small">양산시민축구단 공식 스토어 이용을 위해 이용약관에 동의해 주세요</p>
+                        </div>
+
+                        <!-- 연동 계정 정보 요약 카드 -->
+                        <div class="bg-light p-3 rounded-3 mb-4 border d-flex align-items-center gap-3">
+                            {% if profile.avatar_url %}
+                            <img src="{{ profile.avatar_url }}" alt="프로필" class="rounded-circle border" style="width: 48px; height: 48px; object-fit: cover;">
+                            {% else %}
+                            <div class="rounded-circle bg-secondary text-white d-flex align-items-center justify-content-center" style="width: 48px; height: 48px;">
+                                <i class="bi bi-person-fill fs-4"></i>
+                            </div>
+                            {% endif %}
+                            <div class="overflow-hidden">
+                                <div class="fw-bold text-dark text-truncate">{{ profile.name }}</div>
+                                <div class="small text-muted text-truncate">{{ profile.email }}</div>
+                            </div>
+                        </div>
+
+                        <!-- 알림 메시지 영역 -->
+                        <div id="signup-alert" class="alert d-none py-2 px-3 small rounded-3 mb-3" role="alert"></div>
+
+                        <!-- 회원가입 추가 정보 폼 -->
+                        <form id="social-signup-form" novalidate>
+                            <!-- 휴대전화번호 (선택) -->
+                            <div class="mb-3">
+                                <label for="social-phone" class="form-label small fw-semibold text-secondary">
+                                    휴대전화번호 (선택)
+                                </label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light border-end-0 text-muted">
+                                        <i class="bi bi-phone"></i>
+                                    </span>
+                                    <input type="tel" class="form-control border-start-0 ps-0" id="social-phone" placeholder="010-1234-5678" value="{{ profile.phone or '' }}" autocomplete="tel">
+                                </div>
+                                <div class="form-text small text-muted">주문 배송 및 이벤트 알림 시 사용됩니다.</div>
+                            </div>
+
+                            <!-- 약관 동의 영역 -->
+                            <div class="bg-light p-3 rounded-3 mb-4 border">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input" type="checkbox" id="check-all">
+                                    <label class="form-check-label fw-bold small text-dark" for="check-all">
+                                        전체 약관에 동의합니다
+                                    </label>
+                                </div>
+                                <hr class="my-2 border-secondary border-opacity-25">
+                                <div class="form-check mb-2">
+                                    <input class="form-check-input term-check" type="checkbox" id="terms-agree" required>
+                                    <label class="form-check-label small text-muted" for="terms-agree">
+                                        <span class="text-danger fw-semibold">[필수]</span> 양산시민축구단 스토어 이용약관 동의
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input term-check" type="checkbox" id="privacy-agree" required>
+                                    <label class="form-check-label small text-muted" for="privacy-agree">
+                                        <span class="text-danger fw-semibold">[필수]</span> 개인정보 수집 및 이용 동의
+                                    </label>
+                                </div>
+                            </div>
+
+                            <!-- 회원가입 완료 버튼 -->
+                            <button type="submit" class="btn btn-auth-submit w-100 py-3 fw-bold mb-3" id="btn-complete-signup">
+                                <span class="spinner-border spinner-border-sm me-2 d-none" id="signup-spinner" role="status"></span>
+                                <i class="bi bi-check-circle-fill me-1"></i> 가입 완료하고 시작하기
+                            </button>
+                        </form>
+
+                        <div class="text-center pt-2">
+                            <a href="{{ url_for('main.logout') }}" class="small text-muted text-decoration-none">
+                                <i class="bi bi-arrow-left me-1"></i> 가입 취소하고 돌아가기
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    const form = document.getElementById('social-signup-form');
+    const alertBox = document.getElementById('signup-alert');
+    const submitBtn = document.getElementById('btn-complete-signup');
+    const spinner = document.getElementById('signup-spinner');
+
+    const checkAll = document.getElementById('check-all');
+    const termsAgree = document.getElementById('terms-agree');
+    const privacyAgree = document.getElementById('privacy-agree');
+    const termChecks = document.querySelectorAll('.term-check');
+
+    checkAll.addEventListener('change', () => {
+        termChecks.forEach(cb => cb.checked = checkAll.checked);
+    });
+    termChecks.forEach(cb => {
+        cb.addEventListener('change', () => {
+            checkAll.checked = termsAgree.checked && privacyAgree.checked;
+        });
+    });
+
+    function showAlert(msg, type = 'danger') {
+        alertBox.className = `alert alert-${type} py-2 px-3 small rounded-3 mb-3`;
+        alertBox.textContent = msg;
+    }
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        alertBox.className = 'alert d-none';
+
+        if (!termsAgree.checked || !privacyAgree.checked) {
+            showAlert('필수 약관에 모두 동의해 주세요.');
+            return;
+        }
+
+        submitBtn.disabled = true;
+        spinner.classList.remove('d-none');
+
+        const phone = document.getElementById('social-phone').value.trim();
+
+        try {
+            const res = await fetch("{{ url_for('auth.complete_social_signup') }}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    phone: phone,
+                    terms: true,
+                    privacy: true
+                })
+            });
+
+            const data = await res.json();
+            if (data.success) {
+                window.location.href = data.redirect_url || "{{ url_for('main.index') }}";
+            } else {
+                showAlert(data.message || '가입 처리 중 오류가 발생했습니다.');
+                submitBtn.disabled = false;
+                spinner.classList.add('d-none');
+            }
+        } catch (err) {
+            showAlert('서버와의 통신에 실패했습니다. 다시 시도해 주세요.');
+            submitBtn.disabled = false;
+            spinner.classList.add('d-none');
+        }
+    });
+});
+</script>
+{% endblock %}
