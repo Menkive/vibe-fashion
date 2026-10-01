@@ -430,9 +430,9 @@ def cart():
                 option_id = cart_item['option_id']
                 quantity = cart_item['quantity']
 
-                # 상품 정보 조회
+                # 상품 정보 조회 (image_url은 product_images 테이블에서 따로 조회)
                 prod_response = db_client.table('products') \
-                    .select('id, name, price, image_url, thumbnail_url') \
+                    .select('id, name, price') \
                     .eq('id', product_id) \
                     .execute()
 
@@ -441,9 +441,31 @@ def cart():
 
                 product = prod_response.data[0]
                 
+                # 상품 이미지 조회 (product_images 테이블에서 primary 이미지 가져오기)
+                image_url = ''
+                img_response = db_client.table('product_images') \
+                    .select('image_url') \
+                    .eq('product_id', product_id) \
+                    .eq('is_primary', True) \
+                    .limit(1) \
+                    .execute()
+                
+                if img_response.data:
+                    image_url = img_response.data[0].get('image_url', '')
+                else:
+                    # primary 이미지가 없으면 첫 번째 이미지 사용
+                    img_response = db_client.table('product_images') \
+                        .select('image_url') \
+                        .eq('product_id', product_id) \
+                        .order('sort_order', desc=False) \
+                        .limit(1) \
+                        .execute()
+                    if img_response.data:
+                        image_url = img_response.data[0].get('image_url', '')
+                
                 # 상품 옵션 정보 조회 (색상, 사이즈, 재고)
                 opt_response = db_client.table('product_options') \
-                    .select('id, color, size, stock, stock_quantity') \
+                    .select('id, color, size, stock_quantity') \
                     .eq('id', option_id) \
                     .execute()
 
@@ -452,10 +474,9 @@ def cart():
 
                 option = opt_response.data[0]
 
-                # 재고 계산
-                stock = option.get('stock') or option.get('stock_quantity', 0)
+                # 재고 계산 (stock_quantity 사용)
                 try:
-                    available_stock = int(stock)
+                    available_stock = int(option.get('stock_quantity', 0))
                 except (ValueError, TypeError):
                     available_stock = 0
 
@@ -471,9 +492,6 @@ def cart():
                 is_sold_out = available_stock <= 0
                 if is_sold_out:
                     has_sold_out = True
-
-                # 이미지
-                image_url = product.get('image_url') or product.get('thumbnail_url', '')
 
                 cart_items.append({
                     'cart_id': cart_id,
