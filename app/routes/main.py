@@ -155,6 +155,12 @@ def index():
     return render_template('index.html', products=products)
 
 
+@main_bp.route('/about')
+def about():
+    """양산시민축구단 및 공식 스토어 브랜드 소개 페이지"""
+    return render_template('about.html')
+
+
 @main_bp.route('/products')
 def product_list():
     """전체 상품 목록 화면 (검색, 카테고리 필터, 정렬 기능)"""
@@ -467,7 +473,96 @@ def mypage():
         if not profile_data.get('full_name'):
             profile_data['full_name'] = user_info.get('name') or '회원'
 
-    return render_template('mypage.html', profile=profile_data)
+    # 소셜 로그인 여부 확인 (이메일/비밀번호 가입 회원만 비밀번호 변경 가능)
+    is_password_user = True
+    provider = user_info.get('provider')
+    if provider in ['kakao', 'naver', 'google', 'microsoft', 'oauth']:
+        is_password_user = False
+    elif isinstance(user_id, str) and (user_id.startswith('naver-') or user_id.startswith('kakao-')):
+        is_password_user = False
+    elif admin_client and user_id:
+        try:
+            auth_user_res = admin_client.auth.admin.get_user_by_id(user_id)
+            if auth_user_res and auth_user_res.user:
+                app_meta = getattr(auth_user_res.user, 'app_metadata', {}) or {}
+                user_provider = app_meta.get('provider')
+                providers = app_meta.get('providers') or []
+                if user_provider and user_provider != 'email':
+                    is_password_user = False
+                elif providers and 'email' not in providers:
+                    is_password_user = False
+        except Exception as ue:
+            logger.debug(f"사용자 인증 제공자 조회 알림: {ue}")
+
+    return render_template('mypage.html', profile=profile_data, is_password_user=is_password_user)
+
+
+@main_bp.route('/mypage/change-password', methods=['POST'])
+def change_password():
+    """
+    마이페이지 비밀번호 변경 라우트 (POST /mypage/change-password):
+    - 로그인 필수
+    - 기존 비밀번호 검증 (재로그인 방식)
+    - 새 비밀번호 검증 (6자 이상, 확인 일치, 기존 비밀번호와 동일 여부)
+    - Supabase admin update_user_by_id()를 통한 비밀번호 변경
+    """
+    user_info = session.get('user') or {}
+    user_id = user_info.get('id') or session.get('user_id')
+    user_email = user_info.get('email') or session.get('email')
+
+    if not user_id or not user_email:
+        return redirect(url_for('main.login', error='login_required'))
+
+    current_password = request.form.get('current_password') or ''
+    new_password = request.form.get('new_password') or ''
+    new_password_confirm = request.form.get('new_password_confirm') or ''
+
+    # 1. 입력값 누락 검사
+    if not current_password or not new_password or not new_password_confirm:
+        return redirect(url_for('main.mypage', pw_error='모든 비밀번호 항목을 입력해 주세요.'))
+
+    # 2. 새 비밀번호 유효성 검사 (Day 4 회원가입 조건과 동일: 최소 6자 이상)
+    if len(new_password) < 6:
+        return redirect(url_for('main.mypage', pw_error='새 비밀번호는 최소 6자 이상이어야 합니다.'))
+
+    # 3. 새 비밀번호 확인 일치 검사
+    if new_password != new_password_confirm:
+        return redirect(url_for('main.mypage', pw_error='새 비밀번호와 비밀번호 확인이 일치하지 않습니다.'))
+
+    # 4. 기존 비밀번호와 새 비밀번호 동일 여부 검사
+    if current_password == new_password:
+        return redirect(url_for('main.mypage', pw_error='새로운 비밀번호가 현재 비밀번호와 동일합니다.'))
+
+    # 5. 기존 비밀번호 검증 (Supabase sign_in_with_password 시도)
+    supabase = get_supabase_client()
+    if not supabase:
+        return redirect(url_for('main.mypage', pw_error='인증 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.'))
+
+    try:
+        auth_check = supabase.auth.sign_in_with_password({
+            "email": user_email,
+            "password": current_password
+        })
+        if not auth_check or not auth_check.user:
+            return redirect(url_for('main.mypage', pw_error='현재 비밀번호가 일치하지 않습니다.'))
+    except Exception as e:
+        logger.warning(f"현재 비밀번호 검증 실패: {e}")
+        return redirect(url_for('main.mypage', pw_error='현재 비밀번호가 일치하지 않습니다.'))
+
+    # 6. Supabase Admin API로 비밀번호 변경
+    admin_client = get_supabase_admin_client()
+    if not admin_client:
+        return redirect(url_for('main.mypage', pw_error='관리자 인증 서버에 연결할 수 없습니다.'))
+
+    try:
+        admin_client.auth.admin.update_user_by_id(user_id, {
+            "password": new_password
+        })
+        logger.info(f"사용자 비밀번호 변경 완료: {user_email} ({user_id})")
+        return redirect(url_for('main.mypage', pw_success='비밀번호가 변경되었습니다.'))
+    except Exception as e:
+        logger.error(f"비밀번호 변경 처리 중 오류 발생: {e}")
+        return redirect(url_for('main.mypage', pw_error=f'비밀번호 변경 처리 중 오류가 발생했습니다: {str(e)}'))
 
 
 @main_bp.route('/withdraw', methods=['POST'])

@@ -508,8 +508,67 @@ def oauth_callback():
                         email = kakao_account.get("email") or f"kakao_{kakao_id}@yangsanfc.local"
                         avatar_url = profile.get("profile_image_url") or profile.get("thumbnail_image_url") or ""
 
-                        # 세션에 카카오 회원 로그인 상태 등록
-                        user_uuid = f"kakao-{kakao_id}"
+                        # Supabase auth.users 및 profiles 테이블 연동
+                        admin_client = get_supabase_admin_client()
+                        auth_user_id = None
+
+                        if admin_client:
+                            try:
+                                existing_users = admin_client.auth.admin.list_users()
+                                for u in getattr(existing_users, 'users', existing_users if isinstance(existing_users, list) else []):
+                                    u_meta = getattr(u, 'user_metadata', {}) or {}
+                                    if u_meta.get('kakao_id') == kakao_id or (email and u.email == email):
+                                        auth_user_id = str(u.id)
+                                        break
+                            except Exception as le:
+                                logger.warning(f"기존 카카오 auth.users 조회 알림: {le}")
+
+                            if not auth_user_id:
+                                try:
+                                    new_auth_user = admin_client.auth.admin.create_user({
+                                        "email": email,
+                                        "email_confirm": True,
+                                        "user_metadata": {
+                                            "full_name": nickname,
+                                            "provider": "kakao",
+                                            "kakao_id": kakao_id,
+                                            "avatar_url": avatar_url
+                                        }
+                                    })
+                                    if new_auth_user and new_auth_user.user:
+                                        auth_user_id = str(new_auth_user.user.id)
+                                except Exception as ce:
+                                    logger.warning(f"카카오 auth.users 신규 생성 알림: {ce}")
+
+                        user_uuid = auth_user_id or f"kakao-{kakao_id}"
+
+                        # DB profiles 테이블에 실제로 등록된 회원인지 확인
+                        is_profile_registered = False
+                        if admin_client:
+                            try:
+                                p_res = admin_client.table('profiles').select('id').eq('id', user_uuid).execute()
+                                if p_res.data and len(p_res.data) > 0:
+                                    is_profile_registered = True
+                            except Exception as pe:
+                                logger.warning(f"카카오 프로필 조회 알림: {pe}")
+
+                        # 신규 회원이거나 탈퇴 후 재가입인 경우 -> 약관 동의 및 회원가입 단계로 이동
+                        if not is_profile_registered:
+                            session['pending_social_signup'] = True
+                            session['pending_user_id'] = user_uuid
+                            session['pending_profile'] = {
+                                "id": user_uuid,
+                                "email": email,
+                                "name": nickname,
+                                "phone": "",
+                                "provider": "kakao",
+                                "avatar_url": avatar_url
+                            }
+                            session['kakao_access_token'] = kakao_access_token
+                            logger.info(f"카카오 신규/재가입 회원 약관 동의 단계로 이동: {nickname} ({user_uuid})")
+                            return redirect(url_for('auth.social_signup_step'))
+
+                        # 기존 등록 회원인 경우 정식 세션 등록 및 로그인 완료
                         session['user_id'] = user_uuid
                         session['email'] = email
                         session['user'] = {
@@ -1061,96 +1120,3 @@ def reset_password():
         if is_json:
             return jsonify({"success": False, "message": "비밀번호 재설정에 실패했습니다. 잠시 후 다시 시도해 주세요."}), 400
         return redirect(url_for('auth.reset_password', error='reset_failed'))
-
-
-# ==============================================================================
-# 7. 회원 탈퇴 (POST /auth/withdraw)
-# ==============================================================================
-
-@auth_bp.route('/withdraw', methods=['POST'])
-def withdraw():
-    """
-    회원 탈퇴 처리 라우트:
-    로그인된 회원의 Supabase Auth 계정 및 프로필 데이터를 삭제하고 세션을 초기화합니다.
-    (카카오 연동 회원인 경우 카카오 연결 끊기 API 호출 포함)
-    """
-    user_info = session.get('user') or {}
-    user_id = user_info.get('id') or session.get('user_id')
-    provider = user_info.get('provider')
-    kakao_access_token = session.get('kakao_access_token')
-    is_json = request.is_json or bool(request.get_json(silent=True))
-
-    if not user_id:
-        if is_json:
-            return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
-        return redirect(url_for('main.login', error='login_required'))
-
-    admin_client = get_supabase_admin_client()
-    anon_client = get_supabase_client()
-    is_social_custom = (provider in ['naver', 'kakao']) or (isinstance(user_id, str) and (user_id.startswith('naver-') or user_id.startswith('kakao-')))
-    is_kakao = (provider == 'kakao') or (isinstance(user_id, str) and user_id.startswith('kakao-'))
-
-    try:
-        # 카카오 연동 회원의 경우 카카오 연결 끊기(/v1/user/unlink) 호출
-        if is_kakao:
-            try:
-                import httpx
-                if kakao_access_token:
-                    unlink_res = httpx.post(
-                        "https://kapi.kakao.com/v1/user/unlink",
-                        headers={"Authorization": f"Bearer {kakao_access_token}"},
-                        timeout=5.0
-                    )
-                    logger.info(f"카카오 unlink(토큰) 응답: {unlink_res.status_code}")
-                else:
-                    kakao_admin_key = os.getenv("KAKAO_ADMIN_KEY")
-                    raw_target_id = user_id.replace('kakao-', '') if isinstance(user_id, str) else ''
-                    if kakao_admin_key and raw_target_id.isdigit():
-                        unlink_res = httpx.post(
-                            "https://kapi.kakao.com/v1/user/unlink",
-                            headers={"Authorization": f"KakaoAK {kakao_admin_key}"},
-                            data={"target_id_type": "user_id", "target_id": int(raw_target_id)},
-                            timeout=5.0
-                        )
-                        logger.info(f"카카오 unlink(어드민키) 응답: {unlink_res.status_code}")
-            except Exception as ke:
-                logger.warning(f"카카오 연결 끊기 예외: {ke}")
-
-        # DB에서 프로필 및 관련 데이터 삭제
-        if admin_client:
-            try:
-                admin_client.table('profiles').delete().eq('id', user_id).execute()
-            except Exception as pe:
-                logger.warning(f"프로필 삭제 시도 중 알림: {pe}")
-
-            # Supabase Auth 계정 삭제
-            if not is_social_custom:
-                try:
-                    admin_client.auth.admin.delete_user(user_id)
-                except Exception as ae:
-                    logger.warning(f"Supabase auth admin delete_user 실패: {ae}")
-        elif anon_client:
-            try:
-                anon_client.table('profiles').delete().eq('id', user_id).execute()
-            except Exception as pe:
-                logger.warning(f"프로필 삭제 시도 중 알림: {pe}")
-
-        # Supabase 세션 로그아웃
-        if anon_client:
-            try:
-                anon_client.auth.sign_out()
-            except Exception:
-                pass
-
-        session.clear()
-
-        msg = "회원 탈퇴 및 카카오 연동 해제가 완료되었습니다. 양산시민축구단을 찾아주셔서 감사했습니다."
-        if is_json:
-            return jsonify({"success": True, "message": msg})
-        return redirect(url_for('main.index'))
-
-    except Exception as e:
-        logger.error(f"회원 탈퇴 오류: {e}")
-        if is_json:
-            return jsonify({"success": False, "message": "회원 탈퇴 처리 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요."}), 500
-        return redirect(url_for('main.mypage', error='withdraw_failed'))

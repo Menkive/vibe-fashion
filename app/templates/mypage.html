@@ -89,6 +89,8 @@
             <div class="col-12 col-md-8">
                 <!-- 성공/에러 알림 메시지 -->
                 {% set err = request.args.get('error') %}
+                {% set pw_err = request.args.get('pw_error') %}
+                {% set pw_succ = request.args.get('pw_success') %}
                 {% if success == 'profile_updated' %}
                 <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
                     <i class="bi bi-check-circle-fill me-2"></i>회원 정보가 성공적으로 수정되었습니다.
@@ -97,6 +99,18 @@
                 {% elif err == 'update_failed' %}
                 <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
                     <i class="bi bi-exclamation-triangle-fill me-2"></i>회원 정보 수정 중 오류가 발생했습니다. 다시 시도해 주세요.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% endif %}
+
+                {% if pw_succ %}
+                <div class="alert alert-success alert-dismissible fade show mb-4" role="alert">
+                    <i class="bi bi-check-circle-fill me-2"></i>{{ pw_succ }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+                {% elif pw_err %}
+                <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i>{{ pw_err }}
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
                 {% endif %}
@@ -156,6 +170,42 @@
                                         </button>
                                     </div>
                                 </form>
+
+                                {% if is_password_user %}
+                                <!-- 비밀번호 변경 섹션 (이메일/비밀번호 가입 회원만 조건부 렌더링) -->
+                                <hr class="my-4 border-secondary border-opacity-25">
+                                <div class="password-change-section">
+                                    <h6 class="fw-bold text-dark mb-2">
+                                        <i class="bi bi-key-fill text-warning me-2"></i>비밀번호 변경
+                                    </h6>
+                                    <p class="text-muted small mb-3">
+                                        주기적인 비밀번호 변경으로 계정을 안전하게 보호하세요. (최소 6자 이상)
+                                    </p>
+
+                                    <form method="POST" action="{{ url_for('main.change_password') }}">
+                                        <div class="mb-3">
+                                            <label for="current_password" class="form-label fw-semibold text-dark small">현재 비밀번호 <span class="text-danger">*</span></label>
+                                            <input type="password" class="form-control" id="current_password" name="current_password" placeholder="현재 사용 중인 비밀번호를 입력해 주세요." required autocomplete="current-password">
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="new_password" class="form-label fw-semibold text-dark small">새 비밀번호 <span class="text-danger">*</span></label>
+                                            <input type="password" class="form-control" id="new_password" name="new_password" placeholder="새 비밀번호 입력 (최소 6자 이상)" required minlength="6" autocomplete="new-password">
+                                        </div>
+
+                                        <div class="mb-3">
+                                            <label for="new_password_confirm" class="form-label fw-semibold text-dark small">새 비밀번호 확인 <span class="text-danger">*</span></label>
+                                            <input type="password" class="form-control" id="new_password_confirm" name="new_password_confirm" placeholder="새 비밀번호를 한 번 더 입력해 주세요." required minlength="6" autocomplete="new-password">
+                                        </div>
+
+                                        <div class="d-flex justify-content-end">
+                                            <button type="submit" class="btn btn-outline-dark px-4 fw-bold">
+                                                <i class="bi bi-shield-lock me-1"></i>비밀번호 변경
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+                                {% endif %}
                             </div>
 
                             <!-- 탭2: 주문 내역 -->
