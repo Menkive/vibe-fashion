@@ -37,6 +37,17 @@ def create_app():
         except (ValueError, TypeError):
             return f"{value}원"
 
+    # 로케일 통화 필터 (한국 숫자 포맷)
+    @app.template_filter('locale_currency')
+    def locale_currency_filter(value):
+        if value is None or value == '':
+            return '0원'
+        try:
+            num = int(float(value))
+            return f"{num:,}원"
+        except (ValueError, TypeError):
+            return f"{value}원"
+
     # routes 폴더에서 블루프린트(라우트 모듈) 가져오기
     from app.routes.main import main_bp
     from app.routes.auth import auth_bp

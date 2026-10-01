@@ -17,31 +17,44 @@ const CartManager = {
         this.updateBadge();
     },
 
-    addItem(product, size, quantity = 1) {
+    addItem(product, size, quantity = 1, optionId = null, color = null, cartId = null) {
         if (!size) {
             alert('사이즈를 선택해주세요.');
             return false;
         }
 
         const items = this.getItems();
-        const existingIndex = items.findIndex(item => item.id === product.id && item.size === size);
+        // optionId가 있는 경우 optionId 기준, 없으면 id + size 기준 식별
+        const existingIndex = items.findIndex(item => {
+            if (optionId && item.option_id) {
+                return item.option_id === optionId;
+            }
+            return item.id === product.id && item.size === size && (color ? item.color === color : true);
+        });
 
         if (existingIndex > -1) {
             items[existingIndex].quantity += Number(quantity);
+            if (optionId) items[existingIndex].option_id = optionId;
+            if (color) items[existingIndex].color = color;
+            if (cartId) items[existingIndex].cart_id = cartId;
         } else {
             items.push({
                 id: product.id,
+                cart_id: cartId || null,
+                option_id: optionId,
                 name: product.name,
                 price: Number(product.price),
                 image_url: product.image_url || product.thumbnail_url,
                 category: product.category,
+                color: color || '',
                 size: size,
                 quantity: Number(quantity)
             });
         }
 
         this.saveItems(items);
-        this.showToast(`${product.name} (${size}) ${quantity}개가 장바구니에 담겼습니다.`);
+        const optLabel = color ? `${color} / ${size}` : size;
+        this.showToast(`${product.name} (${optLabel}) ${quantity}개가 장바구니에 담겼습니다.`);
         return true;
     },
 

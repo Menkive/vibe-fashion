@@ -1,0 +1,263 @@
+{% extends 'base.html' %}
+
+{% block title %}양산 8경 | 양산시민축구단 공식 스토어{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<section class="hero-section text-white" style="min-height: 400px; background: linear-gradient(135deg, #0f3460 0%, #16213e 50%, #0f3460 100%);">
+    <div class="container h-100 d-flex align-items-center">
+        <div class="row w-100 align-items-center">
+            <div class="col-lg-8 text-center text-lg-start">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <div class="gold-divider"></div>
+                    <span class="text-uppercase fw-bold text-warning small" style="letter-spacing: 1.5px;">YANGSAN SCENIC COLLECTION</span>
+                </div>
+                <h1 class="display-3 fw-bold mb-3">
+                    양산 <span style="color: var(--color-secondary);">8경</span>
+                </h1>
+                <p class="lead text-light mb-4">
+                    족구 하나 되는 도시, 양산 — 친해의 자연이 함께하는 특별한 이야기<br>
+                    푸른 자부심 속 녹는 양산의 8가지 매력을 지금 만나보세요.
+                </p>
+                <a href="{{ url_for('main.product_list') }}" class="btn btn-primary btn-lg px-4 py-3 fw-semibold" style="background-color: var(--color-secondary); border-color: var(--color-secondary);">
+                    <i class="bi bi-bag-check-fill me-2"></i>스토어로 돌아가기
+                </a>
+            </div>
+            <div class="col-lg-4 text-center d-none d-lg-block">
+                <i class="bi bi-mountain text-warning" style="font-size: 120px; opacity: 0.3;"></i>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- 양산 8경 그리드 -->
+<section class="py-5" style="background-color: #f8f9fa;">
+    <div class="container">
+        <div class="row g-4">
+            {% for attraction in attractions %}
+            <div class="col-12 col-sm-6 col-lg-3">
+                <div class="attraction-card card border-0 shadow-sm rounded-4 h-100 overflow-hidden transition-transform" style="cursor: pointer; transition: transform 0.3s ease, box-shadow 0.3s ease;">
+                    <!-- 이미지 -->
+                    <div class="position-relative overflow-hidden" style="height: 280px; background: linear-gradient(135deg, #0f3460, #16213e);">
+                        <img src="{{ attraction.image }}" 
+                             alt="{{ attraction.name }}" 
+                             class="w-100 h-100 object-fit-cover"
+                             loading="lazy"
+                             style="object-fit: cover;">
+                        
+                        <!-- 번호 배지 -->
+                        <div class="position-absolute top-3 start-3 bg-warning text-dark fw-bold rounded-circle d-flex align-items-center justify-content-center" 
+                             style="width: 50px; height: 50px; font-size: 18px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);">
+                            {{ attraction.id }}
+                        </div>
+
+                        <!-- 오버레이 (호버 시) -->
+                        <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark opacity-0 d-flex align-items-center justify-content-center transition" 
+                             style="opacity: 0; transition: opacity 0.3s ease; cursor: pointer;">
+                            <i class="bi bi-arrow-right text-white" style="font-size: 32px;"></i>
+                        </div>
+                    </div>
+
+                    <!-- 콘텐츠 -->
+                    <div class="card-body p-4">
+                        <div class="small text-warning fw-bold mb-2" style="letter-spacing: 1px; text-transform: uppercase;">
+                            {{ attraction.ko_name }}
+                        </div>
+                        <h5 class="card-title fw-bold text-dark mb-2">{{ attraction.name }}</h5>
+                        <p class="card-text text-secondary small mb-0">{{ attraction.description }}</p>
+                    </div>
+
+                    <!-- 하단 버튼 -->
+                    <div class="card-footer bg-light border-top-0 p-4">
+                        <button class="btn btn-sm btn-outline-primary w-100 fw-semibold" 
+                                data-attraction="{{ attraction.name }}"
+                                onclick="showAttractionDetail('{{ attraction.name }}', '{{ attraction.description }}')">
+                            <i class="bi bi-eye me-1"></i> 자세히 보기
+                        </button>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- 정보 섹션 -->
+<section class="py-5">
+    <div class="container">
+        <div class="row g-4 align-items-center">
+            <div class="col-lg-6">
+                <div class="d-flex align-items-center gap-2 mb-3">
+                    <div class="gold-divider"></div>
+                    <span class="text-uppercase fw-bold text-muted small" style="letter-spacing: 1.5px;">YANGSAN STORY</span>
+                </div>
+                <h2 class="section-title mb-4">양산의 자연을 만나다</h2>
+                <p class="text-muted mb-3">
+                    족구 하나로 뭉쳐 도시의 자부심을 일구는 양산시민축구단. 
+                    우리 팀이 사랑하는 도시 양산에는 자연이 빚어낸 
+                    8가지 매력 있는 명소들이 있습니다.
+                </p>
+                <p class="text-muted mb-4">
+                    경기를 보며 함께한 열정을 일상 속에서도 나누고 싶다면, 
+                    양산의 숨겨진 아름다움 속으로 떠나보세요. 
+                    구단의 자부심과 도시의 매력이 담긴 양산 8경에서 
+                    우리 팬의 또 다른 이야기를 만들어 보겠습니다.
+                </p>
+                <div class="row g-3 mt-4">
+                    <div class="col-sm-6">
+                        <div class="card bg-light border-0 rounded-3 p-3">
+                            <div class="d-flex gap-2 align-items-start">
+                                <i class="bi bi-geo-alt-fill text-primary" style="font-size: 20px; flex-shrink: 0;"></i>
+                                <div>
+                                    <h6 class="fw-bold mb-1">관광 지구</h6>
+                                    <p class="small text-muted mb-0">양산 전역의 8개 명소</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-sm-6">
+                        <div class="card bg-light border-0 rounded-3 p-3">
+                            <div class="d-flex gap-2 align-items-start">
+                                <i class="bi bi-heart-fill text-danger" style="font-size: 20px; flex-shrink: 0;"></i>
+                                <div>
+                                    <h6 class="fw-bold mb-1">추천 여행</h6>
+                                    <p class="small text-muted mb-0">시즌별 최적 방문시기</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="position-relative">
+                    <div class="rounded-4 overflow-hidden shadow-lg" style="background: linear-gradient(135deg, #0f3460, #16213e); height: 400px; display: flex; align-items: center; justify-content: center;">
+                        <i class="bi bi-images text-light" style="font-size: 80px; opacity: 0.3;"></i>
+                    </div>
+                    <div class="card position-absolute bottom-0 end-0 border-0 rounded-3 shadow-lg" style="width: 280px; margin-bottom: -30px; margin-right: -20px; background: white;">
+                        <div class="card-body p-4">
+                            <div class="display-6 fw-bold text-primary mb-2" style="color: var(--color-secondary) !important;">8</div>
+                            <h6 class="card-title fw-bold mb-2">양산의 매력</h6>
+                            <p class="card-text small text-muted mb-0">
+                                자연이 빚어낸 경이로운 풍경과 깊이 있는 문화유산
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- CTA 섹션 -->
+<section class="py-5 bg-primary text-white rounded-5" style="background: linear-gradient(135deg, var(--color-primary), var(--color-secondary)) !important; margin: 60px 30px;">
+    <div class="container text-center">
+        <h3 class="fw-bold mb-3">양산을 더 깊이 있게 경험하세요</h3>
+        <p class="lead mb-4">
+            양산시민축구단 공식 스토어에서 경기를 보며 만난 열정을<br>
+            일상 속에서도 함께하세요.
+        </p>
+        <div class="d-flex flex-column flex-sm-row gap-2 justify-content-center">
+            <a href="{{ url_for('main.product_list') }}" class="btn btn-light fw-bold px-4 py-2">
+                <i class="bi bi-bag-check-fill me-2"></i>스토어 둘러보기
+            </a>
+            <a href="{{ url_for('main.vote_page') }}" class="btn btn-outline-light fw-bold px-4 py-2">
+                <i class="bi bi-star-fill me-2"></i>팬 투표 참여
+            </a>
+        </div>
+    </div>
+</section>
+
+<!-- 모달 -->
+<div class="modal fade" id="attractionModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content border-0 rounded-4">
+            <div class="modal-header bg-light border-0 rounded-top-4">
+                <h5 class="modal-title fw-bold" id="attractionModalTitle">명소 소개</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body p-4">
+                <p id="attractionModalDescription" class="text-muted"></p>
+                <p class="small text-secondary mt-3">
+                    이 정보는 양산의 주요 관광지를 소개하고 있습니다. 
+                    더 자세한 정보는 양산시 관광 안내센터에 문의하세요.
+                </p>
+            </div>
+            <div class="modal-footer border-0">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">닫기</button>
+                <a href="{{ url_for('main.product_list') }}" class="btn btn-primary" style="background-color: var(--color-primary); border-color: var(--color-primary);">
+                    스토어로 가기
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    // 카드 호버 효과
+    document.querySelectorAll('.attraction-card').forEach(card => {
+        const overlay = card.querySelector('.opacity-0');
+        
+        card.addEventListener('mouseenter', () => {
+            if (overlay) {
+                overlay.style.opacity = '0.6';
+                overlay.style.cursor = 'pointer';
+            }
+            card.style.transform = 'translateY(-8px)';
+            card.style.boxShadow = '0 12px 24px rgba(0, 0, 0, 0.2)';
+        });
+
+        card.addEventListener('mouseleave', () => {
+            if (overlay) {
+                overlay.style.opacity = '0';
+            }
+            card.style.transform = 'translateY(0)';
+            card.style.boxShadow = 'rgba(0, 0, 0, 0.1) 0 2px 8px;';
+        });
+    });
+
+    // 애니메이션 효과
+    const observerOptions = {
+        threshold: 0.1,
+        rootMargin: '0px 0px -50px 0px'
+    };
+
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.style.animation = 'fadeInUp 0.6s ease forwards';
+                observer.unobserve(entry.target);
+            }
+        });
+    }, observerOptions);
+
+    document.querySelectorAll('.attraction-card').forEach(card => {
+        observer.observe(card);
+    });
+});
+
+function showAttractionDetail(name, description) {
+    const modal = new bootstrap.Modal(document.getElementById('attractionModal'));
+    document.getElementById('attractionModalTitle').textContent = name;
+    document.getElementById('attractionModalDescription').textContent = 
+        description + ' - 양산의 주요 관광지입니다.';
+    modal.show();
+}
+</script>
+
+<style>
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+</style>
+{% endblock %}
