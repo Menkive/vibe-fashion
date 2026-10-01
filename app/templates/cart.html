@@ -324,7 +324,7 @@ document.addEventListener('DOMContentLoaded', () => {
             qtyInput.value = itemData.quantity;
         }
 
-        // 소계 업데이트 ({{ item.subtotal|locale_currency }} 대체)
+        // 소계 업데이트 (원화 포맷 대체)
         const subtotalSpan = row.querySelector('.small.fw-bold.text-dark');
         if (subtotalSpan) {
             const subtotalFormatted = formatCurrency(itemData.subtotal);
