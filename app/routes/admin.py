@@ -813,10 +813,15 @@ def inventory():
     status_filter = request.args.get('status', '').strip()
     search_keyword = request.args.get('search', '').strip()
 
+    total_count = 0
+    soldout_count = 0
+    low_count = 0
+    normal_count = 0
+
     if db:
         try:
             # product_options와 products JOIN 조회
-            opts_res = db.table('product_options').select('id, product_id, color, size, stock, stock_quantity, products(name, slug, is_active, category_id, categories(name))').execute()
+            opts_res = db.table('product_options').select('id, product_id, color, size, stock, stock_quantity, additional_price, products(name, slug, is_active, category_id, categories(name))').order('product_id').execute()
             if opts_res.data:
                 for row in opts_res.data:
                     p_info = row.get('products') or {}
@@ -830,6 +835,14 @@ def inventory():
                     except:
                         stk_num = 0
 
+                    total_count += 1
+                    if stk_num == 0:
+                        soldout_count += 1
+                    elif stk_num <= 5:
+                        low_count += 1
+                    else:
+                        normal_count += 1
+
                     if search_keyword and search_keyword.lower() not in p_name.lower():
                         continue
 
@@ -841,13 +854,27 @@ def inventory():
                     elif status_filter == 'normal' and stk_num <= 5:
                         continue
 
+                    # 재고 상태 라벨 및 배지 스타일
+                    if stk_num == 0:
+                        status_label = "품절"
+                        badge_class = "bg-danger text-white"
+                    elif stk_num <= 5:
+                        status_label = "재고 부족"
+                        badge_class = "bg-warning-subtle text-warning-emphasis border border-warning-subtle"
+                    else:
+                        status_label = "정상"
+                        badge_class = "bg-success-subtle text-success border border-success-subtle"
+
                     inventory_items.append({
                         "id": row.get('id'),
+                        "product_id": row.get('product_id'),
                         "product_name": p_name,
                         "category": cat_info.get('name', '기타'),
                         "color": row.get('color'),
                         "size": row.get('size'),
                         "stock": stk_num,
+                        "status_label": status_label,
+                        "badge_class": badge_class,
                         "is_active": p_info.get('is_active', True)
                     })
         except Exception as e:
@@ -857,8 +884,83 @@ def inventory():
         'admin/inventory.html',
         inventory_items=inventory_items,
         current_status=status_filter,
-        search_keyword=search_keyword
+        search_keyword=search_keyword,
+        total_count=total_count,
+        soldout_count=soldout_count,
+        low_count=low_count,
+        normal_count=normal_count
     )
+
+
+@admin_bp.route('/inventory/adjust', methods=['POST'])
+@admin_required
+def adjust_inventory():
+    """
+    관리자 옵션별 재고 직접 수정 / 입고(+) / 출고(-)
+    - mode: 'set' (직접 입력값으로 설정) 또는 'delta' (현재 재고에 delta 더하기)
+    - stock_value: 변경할 수량 또는 가감할 수량 (+20, -5 등)
+    """
+    db = get_db()
+    if not db:
+        flash('데이터베이스에 연결할 수 없습니다.', 'danger')
+        return redirect(url_for('admin.inventory'))
+
+    option_id = request.form.get('option_id', '').strip()
+    mode = request.form.get('mode', 'set').strip()
+    val_str = request.form.get('stock_value', '').strip()
+
+    if not option_id or not val_str:
+        flash('옵션 및 재고 수량을 정확히 입력해주세요.', 'warning')
+        return redirect(url_for('admin.inventory'))
+
+    try:
+        val = int(val_str)
+        # 현재 옵션 정보 조회
+        cur_res = db.table('product_options').select('id, product_id, color, size, stock, stock_quantity, products(name)').eq('id', option_id).execute()
+        if not cur_res.data:
+            flash('해당 옵션을 찾을 수 없습니다.', 'danger')
+            return redirect(url_for('admin.inventory'))
+
+        cur_opt = cur_res.data[0]
+        cur_stock = cur_opt.get('stock')
+        if cur_stock is None:
+            cur_stock = cur_opt.get('stock_quantity', 0)
+        cur_stock = max(0, int(cur_stock))
+
+        if mode == 'delta':
+            # 입고(+) 또는 차감(-)
+            new_stock = max(0, cur_stock + val)
+            action_desc = f"입고 (+{val})" if val > 0 else f"조정 ({val})"
+        else:
+            # 직접 수량 지정
+            new_stock = max(0, val)
+            action_desc = "수동 지정"
+
+        # stock 및 stock_quantity 동시 갱신
+        import datetime
+        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+        db.table('product_options').update({
+            'stock': new_stock,
+            'stock_quantity': new_stock,
+            'updated_at': now_iso
+        }).eq('id', option_id).execute()
+
+        prod_name = cur_opt.get('products', {}).get('name', '')
+        color = cur_opt.get('color', '')
+        size = cur_opt.get('size', '')
+
+        flash(f"[{prod_name} - {color}/{size}] 재고가 {cur_stock}개에서 {new_stock}개로 {action_desc} 완료되었습니다.", 'success')
+
+    except ValueError:
+        flash('수량은 숫자(정수)로 입력해주세요.', 'warning')
+    except Exception as e:
+        logger.error(f"재고 조정 오류: {e}")
+        flash(f"재고 수정 중 오류가 발생했습니다: {e}", 'danger')
+
+    # 이전 페이지 필터 유지
+    status = request.form.get('status', '')
+    search = request.form.get('search', '')
+    return redirect(url_for('admin.inventory', status=status, search=search))
 
 
 # ==============================================================================

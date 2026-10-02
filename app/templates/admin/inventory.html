@@ -5,18 +5,63 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h3 class="fw-bold mb-1">옵션별 재고 현황 관리</h3>
-        <p class="text-secondary small mb-0">상품의 색상 및 사이즈별 실시간 잔여 재고와 품절/부족 상태를 확인합니다.</p>
+        <h3 class="fw-bold mb-1">옵션별 전문 재고 관리</h3>
+        <p class="text-secondary small mb-0">양산시민축구단 공식 상품의 색상/사이즈별 실시간 재고를 직접 수정하거나 입고(+), 차감(-) 처리합니다.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('admin.products') }}" class="btn btn-outline-primary btn-sm px-3">
+            <i class="bi bi-box-seam me-1"></i> 상품 관리로 이동
+        </a>
     </div>
 </div>
 
-<!-- 필터 바 -->
+<!-- 재고 요약 카드 (전체, 정상, 재고 부족, 품절) -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3 col-6">
+        <a href="{{ url_for('admin.inventory') }}" class="text-decoration-none">
+            <div class="stat-card" style="border-left-color: #004ea2;">
+                <span class="text-secondary small fw-semibold">전체 관리 옵션</span>
+                <h4 class="fw-bold mt-1 mb-0 text-dark">{{ total_count }}개</h4>
+                <div class="mt-2 text-muted small" style="font-size: 0.75rem;">모든 상품 옵션 규격</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 col-6">
+        <a href="{{ url_for('admin.inventory', status='normal') }}" class="text-decoration-none">
+            <div class="stat-card" style="border-left-color: #059669;">
+                <span class="text-secondary small fw-semibold">정상 재고 (6개 이상)</span>
+                <h4 class="fw-bold mt-1 mb-0 text-success">{{ normal_count }}개</h4>
+                <div class="mt-2 text-success small" style="font-size: 0.75rem;">원활한 판매 가능</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 col-6">
+        <a href="{{ url_for('admin.inventory', status='low') }}" class="text-decoration-none">
+            <div class="stat-card" style="border-left-color: #d97706;">
+                <span class="text-secondary small fw-semibold">재고 부족 (1~5개)</span>
+                <h4 class="fw-bold mt-1 mb-0 text-warning">{{ low_count }}개</h4>
+                <div class="mt-2 text-warning small" style="font-size: 0.75rem;">추가 입고 권장</div>
+            </div>
+        </a>
+    </div>
+    <div class="col-md-3 col-6">
+        <a href="{{ url_for('admin.inventory', status='soldout') }}" class="text-decoration-none">
+            <div class="stat-card" style="border-left-color: #dc2626;">
+                <span class="text-secondary small fw-semibold">품절 (0개)</span>
+                <h4 class="fw-bold mt-1 mb-0 text-danger">{{ soldout_count }}개</h4>
+                <div class="mt-2 text-danger small" style="font-size: 0.75rem;">상세페이지 자동 비활성화</div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<!-- 검색 및 필터 바 -->
 <div class="admin-card p-3 mb-4">
     <form method="GET" action="{{ url_for('admin.inventory') }}" class="row g-2 align-items-center">
         <div class="col-md-3">
             <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
                 <option value="">전체 상태</option>
-                <option value="soldout" {% if current_status == 'soldout' %}selected{% endif %}>품절 옵션 (재고 0개)</option>
+                <option value="soldout" {% if current_status == 'soldout' %}selected{% endif %}>품절 옵션 (0개)</option>
                 <option value="low" {% if current_status == 'low' %}selected{% endif %}>재고 부족 (1~5개)</option>
                 <option value="normal" {% if current_status == 'normal' %}selected{% endif %}>정상 (6개 이상)</option>
             </select>
@@ -40,7 +85,10 @@
     <div class="admin-card-header d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center gap-2">
             <i class="bi bi-stack text-primary"></i>
-            <span>총 <strong>{{ inventory_items|length }}</strong>개 옵션 품목</span>
+            <span>조회된 옵션 <strong>{{ inventory_items|length }}</strong>개 품목</span>
+        </div>
+        <div class="text-secondary small">
+            <i class="bi bi-info-circle me-1"></i> 재고가 0이 되면 고객 화면에서 즉시 "(품절)" 및 선택 불가 처리됩니다.
         </div>
     </div>
     <div class="table-responsive">
@@ -49,35 +97,90 @@
                 <tr>
                     <th class="ps-3">상품명</th>
                     <th>카테고리</th>
-                    <th>색상(Color)</th>
-                    <th>사이즈(Size)</th>
-                    <th class="text-center">현재고</th>
-                    <th>재고 상태</th>
+                    <th>색상</th>
+                    <th>사이즈</th>
+                    <th class="text-center" style="width: 100px;">현재 재고</th>
+                    <th style="width: 110px;">재고 상태</th>
+                    <th class="text-center pe-3" style="width: 320px;">재고 수정</th>
                 </tr>
             </thead>
             <tbody class="small">
                 {% if inventory_items %}
                     {% for item in inventory_items %}
                     <tr>
-                        <td class="ps-3 fw-bold text-dark">{{ item.product_name }}</td>
+                        <td class="ps-3 fw-bold text-dark">
+                            <a href="{{ url_for('admin.edit_product', product_id=item.product_id) }}" class="text-decoration-none text-dark hover-primary">
+                                {{ item.product_name }}
+                            </a>
+                        </td>
                         <td><span class="badge bg-light text-dark border">{{ item.category }}</span></td>
                         <td>{{ item.color }}</td>
-                        <td class="fw-semibold">{{ item.size }}</td>
-                        <td class="text-center fw-bold">{{ item.stock }}개</td>
+                        <td><span class="fw-bold font-monospace">{{ item.size }}</span></td>
+                        <td class="text-center">
+                            <span class="fw-bold fs-6 {% if item.stock == 0 %}text-danger{% elif item.stock <= 5 %}text-warning-emphasis{% else %}text-dark{% endif %}">
+                                {{ item.stock }}개
+                            </span>
+                        </td>
                         <td>
-                            {% if item.stock == 0 %}
-                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">품절 (0개)</span>
-                            {% elif item.stock <= 5 %}
-                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">부족 임박 ({{ item.stock }}개)</span>
-                            {% else %}
-                                <span class="badge bg-success-subtle text-success border border-success-subtle">정상</span>
-                            {% endif %}
+                            <span class="badge {{ item.badge_class }}">{{ item.status_label }}</span>
+                        </td>
+                        <td class="text-end pe-3">
+                            <div class="d-flex align-items-center justify-content-end gap-1">
+                                <!-- 수동 직접 입력 수정 (set) -->
+                                <form method="POST" action="{{ url_for('admin.adjust_inventory') }}" class="d-flex align-items-center gap-1">
+                                    <input type="hidden" name="option_id" value="{{ item.id }}">
+                                    <input type="hidden" name="mode" value="set">
+                                    <input type="hidden" name="status" value="{{ current_status }}">
+                                    <input type="hidden" name="search" value="{{ search_keyword }}">
+                                    <input type="number" name="stock_value" value="{{ item.stock }}" min="0" class="form-control form-control-sm text-center py-1 px-1 fw-bold" style="width: 65px; font-size: 0.8rem;" title="지정할 재고 수량">
+                                    <button type="submit" class="btn btn-sm btn-outline-primary py-1 px-2" style="font-size: 0.75rem;" title="재고값 설정">
+                                        설정
+                                    </button>
+                                </form>
+
+                                <!-- 빠른 입고 단축 버튼 (+10, +20) -->
+                                <form method="POST" action="{{ url_for('admin.adjust_inventory') }}" class="d-inline">
+                                    <input type="hidden" name="option_id" value="{{ item.id }}">
+                                    <input type="hidden" name="mode" value="delta">
+                                    <input type="hidden" name="stock_value" value="10">
+                                    <input type="hidden" name="status" value="{{ current_status }}">
+                                    <input type="hidden" name="search" value="{{ search_keyword }}">
+                                    <button type="submit" class="btn btn-sm btn-light border py-1 px-2 text-success fw-bold" style="font-size: 0.72rem;" title="10개 추가 입고">
+                                        +10
+                                    </button>
+                                </form>
+
+                                <form method="POST" action="{{ url_for('admin.adjust_inventory') }}" class="d-inline">
+                                    <input type="hidden" name="option_id" value="{{ item.id }}">
+                                    <input type="hidden" name="mode" value="delta">
+                                    <input type="hidden" name="stock_value" value="20">
+                                    <input type="hidden" name="status" value="{{ current_status }}">
+                                    <input type="hidden" name="search" value="{{ search_keyword }}">
+                                    <button type="submit" class="btn btn-sm btn-light border py-1 px-2 text-primary fw-bold" style="font-size: 0.72rem;" title="20개 추가 입고">
+                                        +20
+                                    </button>
+                                </form>
+
+                                <!-- 품절(0개) 처리 단축 버튼 -->
+                                {% if item.stock > 0 %}
+                                <form method="POST" action="{{ url_for('admin.adjust_inventory') }}" class="d-inline" onsubmit="return confirm('이 옵션을 품절(재고 0개) 처리하시겠습니까?');">
+                                    <input type="hidden" name="option_id" value="{{ item.id }}">
+                                    <input type="hidden" name="mode" value="set">
+                                    <input type="hidden" name="stock_value" value="0">
+                                    <input type="hidden" name="status" value="{{ current_status }}">
+                                    <input type="hidden" name="search" value="{{ search_keyword }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-danger py-1 px-2" style="font-size: 0.72rem;" title="즉시 품절 처리">
+                                        품절
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="6" class="text-center py-4 text-secondary">
+                        <td colspan="7" class="text-center py-4 text-secondary">
                             조회된 재고 품목이 없습니다.
                         </td>
                     </tr>
