@@ -5,43 +5,37 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h3 class="fw-bold mb-1">전체 주문 및 배송 관리</h3>
-        <p class="text-secondary small mb-0">고객의 주문 내역을 실시간 확인하고 결제 및 배송 상태를 처리합니다.</p>
+        <h3 class="fw-bold mb-1">주문 및 배송 관리</h3>
+        <p class="text-secondary small mb-0">고객 주문 현황을 실시간으로 확인하고 결제, 상품준비, 배송, 취소/환불 상태를 관리합니다.</p>
     </div>
 </div>
 
 <!-- 상태별 요약 탭 뱃지 -->
-<div class="row g-2 mb-3">
-    <div class="col-auto">
-        <a href="{{ url_for('admin.orders') }}" class="btn btn-sm {% if not current_status %}btn-dark{% else %}btn-outline-secondary{% endif %}">
-            전체 ({{ status_counts.all }})
-        </a>
-    </div>
-    <div class="col-auto">
-        <a href="{{ url_for('admin.orders', status='paid') }}" class="btn btn-sm {% if current_status == 'paid' %}btn-success{% else %}btn-outline-success{% endif %}">
-            결제완료 ({{ status_counts.paid }})
-        </a>
-    </div>
-    <div class="col-auto">
-        <a href="{{ url_for('admin.orders', status='preparing') }}" class="btn btn-sm {% if current_status == 'preparing' %}btn-info{% else %}btn-outline-info{% endif %}">
-            배송준비 ({{ status_counts.preparing }})
-        </a>
-    </div>
-    <div class="col-auto">
-        <a href="{{ url_for('admin.orders', status='shipping') }}" class="btn btn-sm {% if current_status == 'shipping' %}btn-primary{% else %}btn-outline-primary{% endif %}">
-            배송중 ({{ status_counts.shipping }})
-        </a>
-    </div>
-    <div class="col-auto">
-        <a href="{{ url_for('admin.orders', status='delivered') }}" class="btn btn-sm {% if current_status == 'delivered' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
-            배송완료 ({{ status_counts.delivered }})
-        </a>
-    </div>
-    <div class="col-auto">
-        <a href="{{ url_for('admin.orders', status='cancelled') }}" class="btn btn-sm {% if current_status == 'cancelled' %}btn-danger{% else %}btn-outline-danger{% endif %}">
-            취소됨 ({{ status_counts.cancelled }})
-        </a>
-    </div>
+<div class="d-flex flex-wrap gap-2 mb-3">
+    <a href="{{ url_for('admin.orders') }}" class="btn btn-sm {% if not current_status %}btn-dark{% else %}btn-outline-secondary{% endif %}">
+        전체 <span class="badge bg-secondary ms-1">{{ status_counts.all }}</span>
+    </a>
+    <a href="{{ url_for('admin.orders', status='pending') }}" class="btn btn-sm {% if current_status == 'pending' %}btn-warning text-dark{% else %}btn-outline-warning text-dark{% endif %}">
+        주문 접수 <span class="badge bg-warning text-dark ms-1">{{ status_counts.pending }}</span>
+    </a>
+    <a href="{{ url_for('admin.orders', status='paid') }}" class="btn btn-sm {% if current_status == 'paid' %}btn-success{% else %}btn-outline-success{% endif %}">
+        결제 완료 <span class="badge bg-success ms-1">{{ status_counts.paid }}</span>
+    </a>
+    <a href="{{ url_for('admin.orders', status='preparing') }}" class="btn btn-sm {% if current_status == 'preparing' %}btn-info text-white{% else %}btn-outline-info{% endif %}">
+        상품 준비중 <span class="badge bg-info ms-1">{{ status_counts.preparing }}</span>
+    </a>
+    <a href="{{ url_for('admin.orders', status='shipping') }}" class="btn btn-sm {% if current_status == 'shipping' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        배송중 <span class="badge bg-primary ms-1">{{ status_counts.shipping }}</span>
+    </a>
+    <a href="{{ url_for('admin.orders', status='delivered') }}" class="btn btn-sm {% if current_status == 'delivered' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+        배송 완료 <span class="badge bg-secondary ms-1">{{ status_counts.delivered }}</span>
+    </a>
+    <a href="{{ url_for('admin.orders', status='cancelled') }}" class="btn btn-sm {% if current_status == 'cancelled' %}btn-danger{% else %}btn-outline-danger{% endif %}">
+        주문 취소 <span class="badge bg-danger ms-1">{{ status_counts.cancelled }}</span>
+    </a>
+    <a href="{{ url_for('admin.orders', status='refunded') }}" class="btn btn-sm {% if current_status == 'refunded' %}btn-dark{% else %}btn-outline-dark{% endif %}">
+        환불 <span class="badge bg-dark ms-1">{{ status_counts.refunded }}</span>
+    </a>
 </div>
 
 <!-- 검색 바 -->
@@ -52,13 +46,13 @@
         {% endif %}
         <div class="col-md-9">
             <div class="input-group input-group-sm">
-                <input type="text" name="search" class="form-control" placeholder="주문번호(예: VF-20261002...) 또는 수령인 성함 검색" value="{{ search_keyword }}">
-                <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i> 검색</button>
+                <input type="text" name="search" class="form-control" placeholder="주문번호, 주문자/수령인, 상품명 검색" value="{{ search_keyword }}">
+                <button class="btn btn-primary" type="submit"><i class="bi bi-search me-1"></i> 검색</button>
             </div>
         </div>
         <div class="col-md-3 text-end">
             <a href="{{ url_for('admin.orders') }}" class="btn btn-outline-secondary btn-sm w-100">
-                <i class="bi bi-arrow-clockwise"></i> 전체 목록 초기화
+                <i class="bi bi-arrow-clockwise me-1"></i> 전체 목록 초기화
             </a>
         </div>
     </form>
@@ -71,13 +65,13 @@
             <thead class="table-light small text-secondary">
                 <tr>
                     <th class="ps-3">주문번호</th>
-                    <th>수령인</th>
-                    <th>연락처</th>
-                    <th>배송지</th>
-                    <th>결제금액</th>
-                    <th>상태</th>
+                    <th>주문자</th>
                     <th>주문일시</th>
-                    <th class="text-center pe-3">상세</th>
+                    <th>상품</th>
+                    <th class="text-center">주문 수량</th>
+                    <th class="text-end">주문 금액</th>
+                    <th class="text-center">주문 상태</th>
+                    <th class="text-center pe-3">상세보기</th>
                 </tr>
             </thead>
             <tbody class="small">
@@ -85,31 +79,30 @@
                     {% for o in orders %}
                     <tr>
                         <td class="ps-3 fw-bold text-primary font-monospace">{{ o.order_number }}</td>
-                        <td>{{ o.recipient_name or '고객' }}</td>
-                        <td class="text-secondary">{{ o.recipient_phone or '-' }}</td>
-                        <td class="text-truncate" style="max-width: 220px;" title="{{ o.shipping_address }}">
-                            {{ o.shipping_address or '-' }}
-                        </td>
-                        <td class="fw-bold">{{ o.final_amount | locale_currency }}</td>
                         <td>
-                            {% if o.status == 'paid' %}
-                                <span class="badge bg-success-subtle text-success border border-success-subtle status-badge">결제완료</span>
-                            {% elif o.status == 'preparing' %}
-                                <span class="badge bg-info-subtle text-info border border-info-subtle status-badge">배송준비</span>
-                            {% elif o.status == 'shipping' %}
-                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle status-badge">배송중</span>
-                            {% elif o.status == 'delivered' %}
-                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle status-badge">배송완료</span>
-                            {% elif o.status == 'cancelled' %}
-                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle status-badge">취소됨</span>
-                            {% else %}
-                                <span class="badge bg-light text-dark status-badge">{{ o.status }}</span>
+                            <div class="fw-semibold text-dark">{{ o.user_display }}</div>
+                            {% if o.user_email %}
+                                <div class="text-secondary" style="font-size: 0.75rem;">{{ o.user_email }}</div>
+                            {% elif o.recipient_phone %}
+                                <div class="text-secondary" style="font-size: 0.75rem;">{{ o.recipient_phone }}</div>
                             {% endif %}
                         </td>
                         <td class="text-secondary">{{ o.created_at[:16].replace('T', ' ') if o.created_at else '-' }}</td>
+                        <td>
+                            <span class="fw-semibold text-dark">{{ o.product_summary }}</span>
+                        </td>
+                        <td class="text-center fw-bold">
+                            <span class="badge bg-light text-dark border">{{ o.total_quantity }}개</span>
+                        </td>
+                        <td class="text-end fw-bold text-dark font-monospace">{{ o.final_amount | locale_currency }}</td>
+                        <td class="text-center">
+                            <span class="badge {{ o.status_info.badge }} status-badge">
+                                {{ o.status_info.label }}
+                            </span>
+                        </td>
                         <td class="text-center pe-3">
-                            <a href="{{ url_for('admin.order_detail', order_id=o.id) }}" class="btn btn-sm btn-light border py-1 px-2" style="font-size: 0.78rem;">
-                                조회 및 변경
+                            <a href="{{ url_for('admin.order_detail', order_id=o.id) }}" class="btn btn-sm btn-outline-primary py-1 px-2 fw-semibold" style="font-size: 0.78rem;">
+                                <i class="bi bi-eye me-1"></i> 상세보기
                             </a>
                         </td>
                     </tr>

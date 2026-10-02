@@ -1,31 +1,37 @@
 {% extends "admin/base.html" %}
 
-{% block title %}주문 상세 | 양산시민축구단 관리자 센터{% endblock %}
+{% block title %}주문 상세 [{{ order.order_number }}] | 양산시민축구단 관리자 센터{% endblock %}
 
 {% block content %}
 <div class="mb-4">
     <a href="{{ url_for('admin.orders') }}" class="btn btn-sm btn-outline-secondary mb-2">
-        <i class="bi bi-arrow-left"></i> 주문 목록으로 돌아가기
+        <i class="bi bi-arrow-left me-1"></i> 주문 목록으로 돌아가기
     </a>
-    <div class="d-flex justify-content-between align-items-center">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-3">
         <div>
-            <h3 class="fw-bold mb-1">주문 상세 관리</h3>
-            <span class="font-monospace text-primary fw-bold">{{ order.order_number }}</span>
+            <h3 class="fw-bold mb-1">주문 상세</h3>
+            <div class="d-flex align-items-center gap-2">
+                <span class="font-monospace text-primary fw-bold fs-5">{{ order.order_number }}</span>
+                <span class="badge {{ order.status_info.badge }} fs-6">
+                    {{ order.status_info.label }}
+                </span>
+            </div>
         </div>
         <div>
             <!-- 주문 상태 변경 폼 -->
-            <form action="{{ url_for('admin.update_order_status', order_id=order.id) }}" method="POST" class="d-flex align-items-center gap-2">
-                <span class="small fw-bold text-secondary">주문 상태:</span>
-                <select name="status" class="form-select form-select-sm" style="width: 140px;">
-                    <option value="paid" {% if order.status == 'paid' %}selected{% endif %}>결제완료</option>
-                    <option value="preparing" {% if order.status == 'preparing' %}selected{% endif %}>배송준비중</option>
+            <form action="{{ url_for('admin.update_order_status', order_id=order.id) }}" method="POST" class="d-flex align-items-center gap-2 p-2 bg-light rounded border">
+                <span class="small fw-bold text-secondary text-nowrap"><i class="bi bi-sliders me-1"></i>주문 상태:</span>
+                <select name="status" class="form-select form-select-sm" style="width: 150px;">
+                    <option value="pending" {% if order.status == 'pending' %}selected{% endif %}>주문 접수</option>
+                    <option value="paid" {% if order.status == 'paid' %}selected{% endif %}>결제 완료</option>
+                    <option value="preparing" {% if order.status == 'preparing' %}selected{% endif %}>상품 준비중</option>
                     <option value="shipping" {% if order.status == 'shipping' %}selected{% endif %}>배송중</option>
-                    <option value="delivered" {% if order.status == 'delivered' %}selected{% endif %}>배송완료</option>
-                    <option value="cancelled" {% if order.status == 'cancelled' %}selected{% endif %}>주문취소</option>
-                    <option value="refunded" {% if order.status == 'refunded' %}selected{% endif %}>환불완료</option>
+                    <option value="delivered" {% if order.status == 'delivered' %}selected{% endif %}>배송 완료</option>
+                    <option value="cancelled" {% if order.status == 'cancelled' %}selected{% endif %}>주문 취소</option>
+                    <option value="refunded" {% if order.status == 'refunded' %}selected{% endif %}>환불</option>
                 </select>
-                <button type="submit" class="btn btn-primary btn-sm px-3">
-                    <i class="bi bi-check-circle me-1"></i> 상태변경
+                <button type="submit" class="btn btn-primary btn-sm px-3 text-nowrap">
+                    <i class="bi bi-check-circle me-1"></i> 상태 변경
                 </button>
             </form>
         </div>
@@ -33,29 +39,53 @@
 </div>
 
 <div class="row g-4">
-    <!-- 좌측: 주문 상품 목록 및 결제 금액 -->
+    <!-- 좌측: 주문 상품 목록 및 금액 상세 -->
     <div class="col-lg-8">
+        <!-- 주문 기본 정보 & 일시 -->
+        <div class="admin-card p-3 mb-3 bg-light-subtle">
+            <div class="row g-2 text-center text-md-start">
+                <div class="col-6 col-md-3">
+                    <span class="text-secondary small d-block">주문번호</span>
+                    <span class="font-monospace fw-bold small text-truncate d-block">{{ order.order_number }}</span>
+                </div>
+                <div class="col-6 col-md-3">
+                    <span class="text-secondary small d-block">주문일시</span>
+                    <span class="fw-semibold small">{{ order.created_at[:16].replace('T', ' ') if order.created_at else '-' }}</span>
+                </div>
+                <div class="col-6 col-md-3">
+                    <span class="text-secondary small d-block">총 수량</span>
+                    <span class="fw-bold small">{{ order.total_quantity }}개</span>
+                </div>
+                <div class="col-6 col-md-3">
+                    <span class="text-secondary small d-block">총 주문금액</span>
+                    <span class="fw-bold small text-primary">{{ order.final_amount | locale_currency }}</span>
+                </div>
+            </div>
+        </div>
+
         <div class="admin-card p-4 mb-4">
-            <h6 class="fw-bold mb-3"><i class="bi bi-bag-check text-primary me-1"></i> 주문 상품 내역 ({{ items|length }}개 품목)</h6>
+            <h6 class="fw-bold mb-3"><i class="bi bi-bag-check text-primary me-1"></i> 주문 상품 내역 ({{ items|length }}개 품목, 총 {{ order.total_quantity }}개)</h6>
             <div class="table-responsive">
                 <table class="table align-middle mb-0">
                     <thead class="table-light small text-secondary">
                         <tr>
-                            <th>상품명</th>
-                            <th>선택 옵션</th>
-                            <th class="text-center">단가</th>
+                            <th>주문 상품</th>
+                            <th>상품 옵션</th>
                             <th class="text-center">수량</th>
-                            <th class="text-end">소계</th>
+                            <th class="text-end">단가</th>
+                            <th class="text-end">상품별 금액</th>
                         </tr>
                     </thead>
                     <tbody class="small">
                         {% for item in items %}
                         <tr>
-                            <td class="fw-bold">{{ item.product_name }}</td>
-                            <td class="text-secondary">{{ item.option_info }}</td>
-                            <td class="text-center">{{ item.unit_price | locale_currency }}</td>
+                            <td class="fw-bold text-dark">{{ item.product_name }}</td>
+                            <td class="text-secondary">
+                                <span class="badge bg-light text-dark border">{{ item.option_info or '기본' }}</span>
+                            </td>
                             <td class="text-center fw-bold">{{ item.quantity }}개</td>
-                            <td class="text-end fw-bold text-primary">{{ item.subtotal | locale_currency }}</td>
+                            <td class="text-end text-secondary">{{ item.unit_price | locale_currency }}</td>
+                            <td class="text-end fw-bold text-primary font-monospace">{{ item.subtotal | locale_currency }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -64,73 +94,94 @@
 
             <hr class="my-3">
 
+            <!-- 금액 정산 카드 -->
             <div class="row justify-content-end">
                 <div class="col-md-6">
                     <div class="d-flex justify-content-between mb-1 small text-secondary">
-                        <span>상품 합계:</span>
-                        <span>{{ order.total_amount | locale_currency }}</span>
+                        <span>상품별 금액 합계:</span>
+                        <span class="font-monospace">{{ order.total_amount | locale_currency }}</span>
                     </div>
                     {% if order.discount_amount %}
                     <div class="d-flex justify-content-between mb-1 small text-danger">
                         <span>할인 금액:</span>
-                        <span>-{{ order.discount_amount | locale_currency }}</span>
+                        <span class="font-monospace">-{{ order.discount_amount | locale_currency }}</span>
                     </div>
                     {% endif %}
                     <div class="d-flex justify-content-between mb-2 small text-secondary">
                         <span>배송비:</span>
-                        <span>{{ order.shipping_fee | locale_currency }}</span>
+                        <span class="font-monospace">{{ order.shipping_fee | locale_currency }}</span>
                     </div>
                     <div class="d-flex justify-content-between pt-2 border-top">
-                        <span class="fw-bold">최종 결제 금액:</span>
-                        <span class="fw-bold fs-5 text-primary">{{ order.final_amount | locale_currency }}</span>
+                        <span class="fw-bold fs-6">총 주문금액:</span>
+                        <span class="fw-bold fs-5 text-primary font-monospace">{{ order.final_amount | locale_currency }}</span>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- 우측: 수령인 및 배송 정보 -->
+    <!-- 우측: 회원 정보 및 배송 정보 -->
     <div class="col-lg-4">
+        <!-- 회원 정보 -->
         <div class="admin-card p-4 mb-3">
-            <h6 class="fw-bold mb-3"><i class="bi bi-truck text-primary me-1"></i> 배송지 정보</h6>
-            <div class="small mb-2">
-                <span class="text-secondary d-block">수령인</span>
-                <span class="fw-bold">{{ order.recipient_name }}</span>
-            </div>
-            <div class="small mb-2">
-                <span class="text-secondary d-block">연락처</span>
-                <span>{{ order.recipient_phone or '-' }}</span>
-            </div>
-            <div class="small mb-2">
-                <span class="text-secondary d-block">배송 주소</span>
-                <span>{{ order.shipping_address or '-' }}</span>
-            </div>
-            <div class="small">
-                <span class="text-secondary d-block">배송 요청사항</span>
-                <span class="fst-italic text-secondary">{{ order.shipping_memo or '요청사항 없음' }}</span>
-            </div>
-        </div>
-
-        <div class="admin-card p-4">
-            <h6 class="fw-bold mb-3"><i class="bi bi-person-circle text-primary me-1"></i> 주문 고객 프로필</h6>
+            <h6 class="fw-bold mb-3"><i class="bi bi-person-circle text-primary me-1"></i> 회원 정보</h6>
             {% if user_profile %}
                 <div class="small mb-2">
+                    <span class="text-secondary d-block">회원 이름</span>
+                    <span class="fw-bold">{{ user_profile.full_name or order.recipient_name }}</span>
+                </div>
+                <div class="small mb-2">
                     <span class="text-secondary d-block">회원 이메일</span>
-                    <span class="fw-semibold">{{ user_profile.email }}</span>
+                    <span class="fw-semibold text-primary font-monospace">{{ user_profile.email }}</span>
                 </div>
                 <div class="small mb-2">
                     <span class="text-secondary d-block">회원 등급</span>
                     <span class="badge bg-warning text-dark">{{ user_profile.grade or 'BRONZE' }}</span>
                 </div>
+                <div class="small mb-2">
+                    <span class="text-secondary d-block">회원 연락처</span>
+                    <span>{{ user_profile.phone_number or order.recipient_phone or '-' }}</span>
+                </div>
                 <div class="small">
-                    <span class="text-secondary d-block">고객 가입일</span>
-                    <span>{{ user_profile.created_at[:10] if user_profile.created_at else '-' }}</span>
+                    <span class="text-secondary d-block">가입일시</span>
+                    <span class="text-secondary">{{ user_profile.created_at[:10] if user_profile.created_at else '-' }}</span>
                 </div>
             {% else %}
+                <div class="small mb-2">
+                    <span class="text-secondary d-block">주문자 성함</span>
+                    <span class="fw-bold">{{ order.recipient_name }}</span>
+                </div>
+                <div class="small mb-2">
+                    <span class="text-secondary d-block">주문자 연락처</span>
+                    <span>{{ order.recipient_phone or '-' }}</span>
+                </div>
                 <div class="small text-secondary">
-                    비회원 또는 기본 프로필 정보가 없습니다.
+                    <span class="badge bg-light text-secondary border">비회원 주문</span>
                 </div>
             {% endif %}
+        </div>
+
+        <!-- 배송 정보 -->
+        <div class="admin-card p-4">
+            <h6 class="fw-bold mb-3"><i class="bi bi-truck text-primary me-1"></i> 배송 정보</h6>
+            <div class="small mb-2">
+                <span class="text-secondary d-block">수령인</span>
+                <span class="fw-bold text-dark">{{ order.recipient_name }}</span>
+            </div>
+            <div class="small mb-2">
+                <span class="text-secondary d-block">수령인 연락처</span>
+                <span class="fw-semibold">{{ order.recipient_phone or '-' }}</span>
+            </div>
+            <div class="small mb-2">
+                <span class="text-secondary d-block">배송 주소</span>
+                <div class="p-2 bg-light rounded text-break border mt-1">
+                    {{ order.shipping_address or '-' }}
+                </div>
+            </div>
+            <div class="small">
+                <span class="text-secondary d-block">배송 요청사항</span>
+                <span class="fst-italic text-secondary">{{ order.shipping_memo or '요청사항 없음' }}</span>
+            </div>
         </div>
     </div>
 </div>

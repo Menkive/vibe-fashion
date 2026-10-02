@@ -619,6 +619,17 @@ def delete_product_option(product_id, option_id):
 # ==============================================================================
 # 3. 주문 관리 (Orders)
 # ==============================================================================
+ORDER_STATUS_MAP = {
+    'pending': {'label': '주문 접수', 'badge': 'bg-warning-subtle text-warning border border-warning-subtle'},
+    'paid': {'label': '결제 완료', 'badge': 'bg-success-subtle text-success border border-success-subtle'},
+    'preparing': {'label': '상품 준비중', 'badge': 'bg-info-subtle text-info border border-info-subtle'},
+    'shipping': {'label': '배송중', 'badge': 'bg-primary-subtle text-primary border border-primary-subtle'},
+    'delivered': {'label': '배송 완료', 'badge': 'bg-secondary-subtle text-secondary border border-secondary-subtle'},
+    'cancelled': {'label': '주문 취소', 'badge': 'bg-danger-subtle text-danger border border-danger-subtle'},
+    'refunded': {'label': '환불', 'badge': 'bg-dark-subtle text-dark border border-dark-subtle'}
+}
+
+
 @admin_bp.route('/orders')
 @admin_required
 def orders():
@@ -630,16 +641,18 @@ def orders():
     orders_list = []
     status_counts = {
         'all': 0,
+        'pending': 0,
         'paid': 0,
         'preparing': 0,
         'shipping': 0,
         'delivered': 0,
-        'cancelled': 0
+        'cancelled': 0,
+        'refunded': 0
     }
 
     if db:
         try:
-            # 전체 주문 조회
+            # 1. 전체 주문 조회 (최신순)
             res = db.table('orders').select('*').order('created_at', desc=True).execute()
             all_orders = res.data or []
 
@@ -650,15 +663,70 @@ def orders():
                 if st in status_counts:
                     status_counts[st] += 1
 
-            # 필터링 적용
+            # 주문 번호 및 고객명, 사용자 ID 목록 수집
+            order_ids = [o['id'] for o in all_orders if 'id' in o]
+            user_ids = list({o['user_id'] for o in all_orders if o.get('user_id')})
+
+            # 2. 관련 order_items 한 번에 일괄 조회하여 주문별 상품 정보 요약 매핑
+            order_items_map = {}
+            if order_ids:
+                try:
+                    items_res = db.table('order_items').select('order_id, product_name, quantity, option_info, subtotal').in_('order_id', order_ids).execute()
+                    for it in (items_res.data or []):
+                        oid = it.get('order_id')
+                        if oid not in order_items_map:
+                            order_items_map[oid] = []
+                        order_items_map[oid].append(it)
+                except Exception as ie:
+                    logger.warning(f"주문 상품 일괄 조회 중 경고: {ie}")
+
+            # 3. 관련 회원 정보(profiles) 일괄 조회
+            user_profiles_map = {}
+            if user_ids:
+                try:
+                    prof_res = db.table('profiles').select('id, email, full_name, role, grade').in_('id', user_ids).execute()
+                    for p in (prof_res.data or []):
+                        user_profiles_map[p['id']] = p
+                except Exception as pe:
+                    logger.warning(f"회원 프로필 일괄 조회 중 경고: {pe}")
+
+            # 4. 각 주문별 상품 요약 및 주문 수량, 고객 정보 보강
             for o in all_orders:
+                items = order_items_map.get(o['id'], [])
+                total_qty = sum(int(it.get('quantity', 0)) for it in items)
+                
+                if items:
+                    first_prod = items[0].get('product_name', '양산FC 상품')
+                    if len(items) > 1:
+                        product_summary = f"{first_prod} 외 {len(items) - 1}건"
+                    else:
+                        product_summary = first_prod
+                else:
+                    product_summary = "주문 상품 없음"
+
+                u_prof = user_profiles_map.get(o.get('user_id'))
+                user_display = (u_prof.get('full_name') if u_prof and u_prof.get('full_name') else '') or o.get('recipient_name') or '고객'
+                user_email = u_prof.get('email') if u_prof else ''
+
+                o['product_summary'] = product_summary
+                o['total_quantity'] = total_qty
+                o['user_display'] = user_display
+                o['user_email'] = user_email
+                o['user_grade'] = u_prof.get('grade', 'BRONZE') if u_prof else ''
+                o['status_info'] = ORDER_STATUS_MAP.get(o.get('status'), {'label': o.get('status'), 'badge': 'bg-light text-dark'})
+
+                # 필터링 적용
                 if status_filter and o.get('status') != status_filter:
                     continue
                 if search_keyword:
                     ord_num = str(o.get('order_number', ''))
                     recip = str(o.get('recipient_name', ''))
-                    if search_keyword.lower() not in ord_num.lower() and search_keyword.lower() not in recip.lower():
+                    prod = str(o.get('product_summary', ''))
+                    u_name = str(o.get('user_display', ''))
+                    kw = search_keyword.lower()
+                    if kw not in ord_num.lower() and kw not in recip.lower() and kw not in prod.lower() and kw not in u_name.lower():
                         continue
+
                 orders_list.append(o)
 
         except Exception as e:
@@ -669,7 +737,8 @@ def orders():
         orders=orders_list,
         current_status=status_filter,
         search_keyword=search_keyword,
-        status_counts=status_counts
+        status_counts=status_counts,
+        status_map=ORDER_STATUS_MAP
     )
 
 
@@ -692,6 +761,11 @@ def order_detail(order_id):
         items_res = db.table('order_items').select('*').eq('order_id', order_id).execute()
         items = items_res.data or []
 
+        # 주문 상품 총 수량 계산
+        total_items_quantity = sum(int(it.get('quantity', 0)) for it in items)
+        order['total_quantity'] = total_items_quantity
+        order['status_info'] = ORDER_STATUS_MAP.get(order.get('status'), {'label': order.get('status'), 'badge': 'bg-light text-dark'})
+
         # 주문 고객의 프로필 확인
         user_profile = None
         if order.get('user_id'):
@@ -703,7 +777,8 @@ def order_detail(order_id):
             'admin/order_detail.html',
             order=order,
             items=items,
-            user_profile=user_profile
+            user_profile=user_profile,
+            status_map=ORDER_STATUS_MAP
         )
     except Exception as e:
         logger.error(f"주문 상세 조회 오류: {e}")
@@ -714,9 +789,9 @@ def order_detail(order_id):
 @admin_bp.route('/orders/<order_id>/status', methods=['POST'])
 @admin_required
 def update_order_status(order_id):
-    """주문 상태 업데이트 (결제완료, 배송준비, 배송중, 배송완료, 취소)"""
+    """주문 상태 업데이트 (주문 접수, 결제 완료, 상품 준비중, 배송중, 배송 완료, 주문 취소, 환불)"""
     new_status = request.form.get('status', '').strip()
-    valid_statuses = ['pending', 'paid', 'preparing', 'shipping', 'delivered', 'cancelled', 'refunded']
+    valid_statuses = list(ORDER_STATUS_MAP.keys())
 
     if new_status not in valid_statuses:
         flash('올바르지 않은 주문 상태입니다.', 'danger')
@@ -726,16 +801,8 @@ def update_order_status(order_id):
     if db:
         try:
             db.table('orders').update({'status': new_status}).eq('id', order_id).execute()
-            status_labels = {
-                'pending': '결제대기',
-                'paid': '결제완료',
-                'preparing': '배송준비중',
-                'shipping': '배송중',
-                'delivered': '배송완료',
-                'cancelled': '주문취소',
-                'refunded': '환불완료'
-            }
-            flash(f"주문 상태가 '{status_labels.get(new_status, new_status)}'(으)로 변경되었습니다.", 'success')
+            label = ORDER_STATUS_MAP.get(new_status, {}).get('label', new_status)
+            flash(f"주문 상태가 '{label}'(으)로 변경되었습니다.", 'success')
         except Exception as e:
             logger.error(f"주문 상태 변경 오류: {e}")
             flash(f"상태 변경 실패: {e}", 'danger')
