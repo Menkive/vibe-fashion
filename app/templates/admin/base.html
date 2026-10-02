@@ -115,13 +115,23 @@
                             </a>
                         </li>
                         <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint in ['admin.orders', 'admin.order_detail'] %}active{% endif %}" href="{{ url_for('admin.orders') }}">
+                                <i class="bi bi-receipt"></i> 주문 관리
+                            </a>
+                        </li>
+                        <li class="nav-item">
                             <a class="nav-link {% if request.endpoint in ['admin.products', 'admin.edit_product'] %}active{% endif %}" href="{{ url_for('admin.products') }}">
                                 <i class="bi bi-box-seam"></i> 상품 관리
                             </a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link {% if request.endpoint in ['admin.orders', 'admin.order_detail'] %}active{% endif %}" href="{{ url_for('admin.orders') }}">
-                                <i class="bi bi-receipt"></i> 주문 관리
+                            <a class="nav-link {% if request.endpoint == 'admin.inventory' %}active{% endif %}" href="{{ url_for('admin.inventory') }}">
+                                <i class="bi bi-stack"></i> 재고 관리
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link {% if request.endpoint == 'admin.sales' %}active{% endif %}" href="{{ url_for('admin.sales') }}">
+                                <i class="bi bi-graph-up-arrow"></i> 매출 관리
                             </a>
                         </li>
                         <li class="nav-item">

@@ -1,0 +1,89 @@
+{% extends "admin/base.html" %}
+
+{% block title %}재고 관리 | 양산시민축구단 관리자 센터{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold mb-1">옵션별 재고 현황 관리</h3>
+        <p class="text-secondary small mb-0">상품의 색상 및 사이즈별 실시간 잔여 재고와 품절/부족 상태를 확인합니다.</p>
+    </div>
+</div>
+
+<!-- 필터 바 -->
+<div class="admin-card p-3 mb-4">
+    <form method="GET" action="{{ url_for('admin.inventory') }}" class="row g-2 align-items-center">
+        <div class="col-md-3">
+            <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="">전체 상태</option>
+                <option value="soldout" {% if current_status == 'soldout' %}selected{% endif %}>품절 옵션 (재고 0개)</option>
+                <option value="low" {% if current_status == 'low' %}selected{% endif %}>재고 부족 (1~5개)</option>
+                <option value="normal" {% if current_status == 'normal' %}selected{% endif %}>정상 (6개 이상)</option>
+            </select>
+        </div>
+        <div class="col-md-7">
+            <div class="input-group input-group-sm">
+                <input type="text" name="search" class="form-control" placeholder="상품명 검색..." value="{{ search_keyword }}">
+                <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i> 검색</button>
+            </div>
+        </div>
+        <div class="col-md-2 text-end">
+            <a href="{{ url_for('admin.inventory') }}" class="btn btn-outline-secondary btn-sm w-100">
+                <i class="bi bi-arrow-clockwise"></i> 초기화
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- 재고 목록 테이블 -->
+<div class="admin-card">
+    <div class="admin-card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-stack text-primary"></i>
+            <span>총 <strong>{{ inventory_items|length }}</strong>개 옵션 품목</span>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light small text-secondary">
+                <tr>
+                    <th class="ps-3">상품명</th>
+                    <th>카테고리</th>
+                    <th>색상(Color)</th>
+                    <th>사이즈(Size)</th>
+                    <th class="text-center">현재고</th>
+                    <th>재고 상태</th>
+                </tr>
+            </thead>
+            <tbody class="small">
+                {% if inventory_items %}
+                    {% for item in inventory_items %}
+                    <tr>
+                        <td class="ps-3 fw-bold text-dark">{{ item.product_name }}</td>
+                        <td><span class="badge bg-light text-dark border">{{ item.category }}</span></td>
+                        <td>{{ item.color }}</td>
+                        <td class="fw-semibold">{{ item.size }}</td>
+                        <td class="text-center fw-bold">{{ item.stock }}개</td>
+                        <td>
+                            {% if item.stock == 0 %}
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle">품절 (0개)</span>
+                            {% elif item.stock <= 5 %}
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle">부족 임박 ({{ item.stock }}개)</span>
+                            {% else %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">정상</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center py-4 text-secondary">
+                            조회된 재고 품목이 없습니다.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

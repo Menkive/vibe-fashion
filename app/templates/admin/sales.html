@@ -1,0 +1,85 @@
+{% extends "admin/base.html" %}
+
+{% block title %}매출 관리 | 양산시민축구단 관리자 센터{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold mb-1">매출 및 주문 정산 현황</h3>
+        <p class="text-secondary small mb-0">양산시민축구단 공식 팀스토어의 일자별 매출 및 실시간 결제 현황을 파악합니다.</p>
+    </div>
+</div>
+
+<!-- 매출 요약 카드 -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="stat-card" style="border-left-color: #004ea2;">
+            <span class="text-secondary small fw-semibold">총 유효 매출액</span>
+            <h4 class="fw-bold mt-1 mb-0">{{ total_revenue | locale_currency }}</h4>
+            <div class="mt-2 text-secondary small" style="font-size: 0.78rem;">
+                <i class="bi bi-check-circle-fill text-success me-1"></i> 총 {{ total_valid_orders }}건 주문 기준
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card" style="border-left-color: #059669;">
+            <span class="text-secondary small fw-semibold">오늘 매출액</span>
+            <h4 class="fw-bold mt-1 mb-0 text-success">{{ today_revenue | locale_currency }}</h4>
+            <div class="mt-2 text-secondary small" style="font-size: 0.78rem;">
+                <i class="bi bi-clock-history text-primary me-1"></i> 금일 발생 실시간 결제
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="stat-card" style="border-left-color: #f59e0b;">
+            <span class="text-secondary small fw-semibold">평균 주문 객단가 (AOV)</span>
+            <h4 class="fw-bold mt-1 mb-0">
+                {% if total_valid_orders > 0 %}
+                    {{ (total_revenue // total_valid_orders) | locale_currency }}
+                {% else %}
+                    0원
+                {% endif %}
+            </h4>
+            <div class="mt-2 text-secondary small" style="font-size: 0.78rem;">
+                건당 평균 결제 금액
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 일자별 매출 현황 -->
+<div class="admin-card mb-4">
+    <div class="admin-card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-calendar-event text-primary"></i>
+            <span>일자별 매출 추이</span>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light small text-secondary">
+                <tr>
+                    <th class="ps-3">일자</th>
+                    <th class="text-end pe-3">매출 합계</th>
+                </tr>
+            </thead>
+            <tbody class="small">
+                {% if sales_by_date %}
+                    {% for dt, amt in sales_by_date %}
+                    <tr>
+                        <td class="ps-3 fw-bold">{{ dt }}</td>
+                        <td class="text-end pe-3 fw-bold text-primary">{{ amt | locale_currency }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="2" class="text-center py-4 text-secondary">
+                            매출 내역이 없습니다.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

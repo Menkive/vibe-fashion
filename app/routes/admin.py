@@ -83,53 +83,120 @@ def admin_required(f):
 @admin_bp.route('/dashboard')
 @admin_required
 def dashboard():
-    """관리자 메인 대시보드 - 핵심 KPI 및 최근 주문 현황"""
-    db = get_db()
+    """
+    관리자 메인 대시보드:
+    요구사항 반영 5대 상단 요약 카드:
+    - 오늘 매출 (today_sales)
+    - 오늘 주문 건수 (today_orders_count)
+    - 전체 상품 수 (total_products_count)
+    - 재고 부족 상품 수 (low_stock_products_count)
+    - 품절 상품 수 (out_of_stock_products_count)
+    하단:
+    - 최근 주문 목록 (최근 5~10건)
+    """
+    import datetime
+    from collections import defaultdict
     
+    db = get_db()
+    today_str = datetime.date.today().isoformat()
+    
+    today_sales = 0
+    today_orders_count = 0
     total_sales = 0
     total_orders_count = 0
     total_products_count = 0
-    total_users_count = 0
+    low_stock_products_count = 0
+    out_of_stock_products_count = 0
     recent_orders = []
     
     if db:
         try:
-            # 1) 전체 주문 조회 및 매출 합계 계산
+            # 1) 전체 주문 조회 및 오늘 주문/매출 집계
             orders_res = db.table('orders').select('*').order('created_at', desc=True).execute()
             if orders_res.data:
-                total_orders_count = len(orders_res.data)
-                recent_orders = orders_res.data[:7]
-                for o in orders_res.data:
-                    # 취소/환불 제외한 유효 주문 금액 합산
-                    if o.get('status') not in ['cancelled', 'refunded']:
-                        try:
-                            total_sales += int(float(o.get('final_amount', 0)))
-                        except (ValueError, TypeError):
-                            pass
+                all_orders = orders_res.data
+                total_orders_count = len(all_orders)
+                recent_orders = all_orders[:8]  # 최근 8건
 
-            # 2) 등록 상품 수
-            products_res = db.table('products').select('id', count='exact').execute()
-            total_products_count = products_res.count if products_res.count is not None else len(products_res.data or [])
+                for o in all_orders:
+                    c_date = str(o.get('created_at', ''))[:10]
+                    is_valid = o.get('status') not in ['cancelled', 'refunded']
+                    try:
+                        amt = int(float(o.get('final_amount', 0)))
+                    except (ValueError, TypeError):
+                        amt = 0
 
-            # 3) 회원 수
-            users_res = db.table('profiles').select('id', count='exact').execute()
-            total_users_count = users_res.count if users_res.count is not None else len(users_res.data or [])
+                    if is_valid:
+                        total_sales += amt
+
+                    if c_date == today_str:
+                        today_orders_count += 1
+                        if is_valid:
+                            today_sales += amt
+
+            # 2) 전체 상품 및 옵션별 재고 집계
+            prods_res = db.table('products').select('id, name, is_active').execute()
+            prods = prods_res.data or []
+            total_products_count = len(prods)
+
+            opts_res = db.table('product_options').select('product_id, stock, stock_quantity').execute()
+            opts = opts_res.data or []
+
+            p_stock_map = defaultdict(int)
+            p_zero_opts = defaultdict(int)
+            p_low_opts = defaultdict(int)
+
+            for o in opts:
+                pid = o.get('product_id')
+                stk = o.get('stock')
+                if stk is None:
+                    stk = o.get('stock_quantity', 0)
+                try:
+                    stk_val = max(0, int(stk))
+                except (ValueError, TypeError):
+                    stk_val = 0
+
+                p_stock_map[pid] += stk_val
+                if stk_val == 0:
+                    p_zero_opts[pid] += 1
+                elif stk_val <= 5:
+                    p_low_opts[pid] += 1
+
+            for p in prods:
+                pid = p.get('id')
+                tot_stk = p_stock_map.get(pid, 0)
+                zero_cnt = p_zero_opts.get(pid, 0)
+                low_cnt = p_low_opts.get(pid, 0)
+                is_active = p.get('is_active', True)
+
+                # 품절 판정: 총 재고가 0이거나, 판매중지(비활성)이거나, 품절된 옵션(재고 0)이 1개 이상 존재하는 상품
+                if tot_stk == 0 or not is_active or zero_cnt > 0:
+                    out_of_stock_products_count += 1
+                # 재고 부족 판정: 품절은 아니지만 총 재고 30개 이하이거나 재고 5개 이하인 임박 옵션을 가진 상품
+                elif tot_stk <= 30 or low_cnt > 0:
+                    low_stock_products_count += 1
 
         except Exception as e:
             logger.error(f"관리자 대시보드 통계 조회 오류: {e}")
     else:
         # DB 연결 실패 시 기본 폴백
         total_products_count = len(INITIAL_PRODUCTS)
-        total_sales = 1358000
+        today_sales = 1090000
+        today_orders_count = 5
+        total_sales = 1308000
         total_orders_count = 5
-        total_users_count = 3
+        low_stock_products_count = 4
+        out_of_stock_products_count = 1
 
     return render_template(
         'admin/dashboard.html',
+        today_sales=today_sales,
+        today_orders_count=today_orders_count,
         total_sales=total_sales,
         total_orders_count=total_orders_count,
         total_products_count=total_products_count,
-        total_users_count=total_users_count,
+        low_stock_products_count=low_stock_products_count,
+        out_of_stock_products_count=out_of_stock_products_count,
         recent_orders=recent_orders
     )
 
@@ -500,4 +567,112 @@ def users():
         'admin/users.html',
         users=users_list,
         search_keyword=search_keyword
+    )
+
+
+# ==============================================================================
+# 5. 재고 관리 (Inventory)
+# ==============================================================================
+@admin_bp.route('/inventory')
+@admin_required
+def inventory():
+    """관리자 재고 관리 (전체 옵션별 실시간 잔여 재고 현황)"""
+    db = get_db()
+    inventory_items = []
+    status_filter = request.args.get('status', '').strip()
+    search_keyword = request.args.get('search', '').strip()
+
+    if db:
+        try:
+            # product_options와 products JOIN 조회
+            opts_res = db.table('product_options').select('id, product_id, color, size, stock, stock_quantity, products(name, slug, is_active, category_id, categories(name))').execute()
+            if opts_res.data:
+                for row in opts_res.data:
+                    p_info = row.get('products') or {}
+                    cat_info = p_info.get('categories') or {}
+                    p_name = p_info.get('name', '미확인 상품')
+                    stk = row.get('stock')
+                    if stk is None:
+                        stk = row.get('stock_quantity', 0)
+                    try:
+                        stk_num = max(0, int(stk))
+                    except:
+                        stk_num = 0
+
+                    if search_keyword and search_keyword.lower() not in p_name.lower():
+                        continue
+
+                    # 상태 필터 (품절, 부족, 정상)
+                    if status_filter == 'soldout' and stk_num > 0:
+                        continue
+                    elif status_filter == 'low' and (stk_num == 0 or stk_num > 5):
+                        continue
+                    elif status_filter == 'normal' and stk_num <= 5:
+                        continue
+
+                    inventory_items.append({
+                        "id": row.get('id'),
+                        "product_name": p_name,
+                        "category": cat_info.get('name', '기타'),
+                        "color": row.get('color'),
+                        "size": row.get('size'),
+                        "stock": stk_num,
+                        "is_active": p_info.get('is_active', True)
+                    })
+        except Exception as e:
+            logger.error(f"재고 관리 조회 오류: {e}")
+
+    return render_template(
+        'admin/inventory.html',
+        inventory_items=inventory_items,
+        current_status=status_filter,
+        search_keyword=search_keyword
+    )
+
+
+# ==============================================================================
+# 6. 매출 관리 (Sales)
+# ==============================================================================
+@admin_bp.route('/sales')
+@admin_required
+def sales():
+    """관리자 매출 분석 및 주문 정산 현황"""
+    import datetime
+    from collections import defaultdict
+    db = get_db()
+
+    sales_by_date = defaultdict(int)
+    sales_by_status = defaultdict(int)
+    total_revenue = 0
+    total_valid_orders = 0
+    today_revenue = 0
+    today_str = datetime.date.today().isoformat()
+
+    orders_list = []
+    if db:
+        try:
+            res = db.table('orders').select('*').order('created_at', desc=True).execute()
+            orders_list = res.data or []
+            for o in orders_list:
+                amt = int(float(o.get('final_amount', 0)))
+                st = o.get('status', '')
+                dt = str(o.get('created_at', ''))[:10]
+
+                if st not in ['cancelled', 'refunded']:
+                    total_revenue += amt
+                    total_valid_orders += 1
+                    sales_by_date[dt] += amt
+                    if dt == today_str:
+                        today_revenue += amt
+                sales_by_status[st] += amt
+        except Exception as e:
+            logger.error(f"매출 통계 조회 오류: {e}")
+
+    return render_template(
+        'admin/sales.html',
+        total_revenue=total_revenue,
+        total_valid_orders=total_valid_orders,
+        today_revenue=today_revenue,
+        sales_by_date=sorted(sales_by_date.items(), reverse=True),
+        orders_list=orders_list[:15]
     )
