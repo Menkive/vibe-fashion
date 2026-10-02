@@ -355,6 +355,8 @@ def edit_product(product_id):
             badge = request.form.get('badge', '').strip()
             description = request.form.get('description', '').strip()
             is_active = request.form.get('is_active') == 'true'
+            category_id = request.form.get('category_id', '').strip() or None
+            image_url = request.form.get('image_url', '').strip()
 
             update_data = {
                 'name': name,
@@ -364,10 +366,30 @@ def edit_product(product_id):
                 'description': description,
                 'is_active': is_active
             }
+            if category_id:
+                update_data['category_id'] = category_id
 
             db.table('products').update(update_data).eq('id', product_id).execute()
+
+            # 대표 이미지 처리 (product_images)
+            if image_url:
+                try:
+                    # 기존 대표 이미지 확인
+                    img_check = db.table('product_images').select('id').eq('product_id', product_id).eq('is_primary', True).execute()
+                    if img_check.data:
+                        db.table('product_images').update({'image_url': image_url}).eq('id', img_check.data[0]['id']).execute()
+                    else:
+                        db.table('product_images').insert({
+                            'product_id': product_id,
+                            'image_url': image_url,
+                            'is_primary': True,
+                            'sort_order': 0
+                        }).execute()
+                except Exception as img_err:
+                    logger.warning(f"상품 이미지 업데이트 오류: {img_err}")
+
             flash(f"상품 [{name}] 정보가 성공적으로 수정되었습니다.", 'success')
-            return redirect(url_for('admin.products'))
+            return redirect(url_for('admin.edit_product', product_id=product_id))
         except Exception as e:
             logger.error(f"상품 정보 수정 오류: {e}")
             flash(f"수정 중 오류가 발생했습니다: {e}", 'danger')
@@ -379,10 +401,219 @@ def edit_product(product_id):
         return redirect(url_for('admin.products'))
 
     product = product_res.data[0]
-    options_res = db.table('product_options').select('*').eq('product_id', product_id).execute()
+    
+    # 대표 이미지 조회
+    primary_img_url = ''
+    try:
+        img_res = db.table('product_images').select('image_url, is_primary').eq('product_id', product_id).execute()
+        if img_res.data:
+            primary_img = next((i.get('image_url') for i in img_res.data if i.get('is_primary')), img_res.data[0].get('image_url'))
+            primary_img_url = primary_img or ''
+    except Exception as e:
+        logger.warning(f"대표 이미지 조회 오류: {e}")
+
+    # 카테고리 목록
+    categories = []
+    try:
+        cat_res = db.table('categories').select('id, name').execute()
+        categories = cat_res.data or []
+    except Exception as e:
+        logger.warning(f"카테고리 목록 조회 오류: {e}")
+
+    # 옵션 목록
+    options_res = db.table('product_options').select('*').eq('product_id', product_id).order('created_at').execute()
     options = options_res.data or []
 
-    return render_template('admin/product_edit.html', product=product, options=options)
+    return render_template('admin/product_edit.html', product=product, options=options, categories=categories, primary_img_url=primary_img_url)
+
+
+@admin_bp.route('/products/new', methods=['GET', 'POST'])
+@admin_required
+def create_product():
+    """신규 상품 등록 및 기본 옵션 생성"""
+    db = get_db()
+    if not db:
+        flash('데이터베이스에 연결할 수 없습니다.', 'danger')
+        return redirect(url_for('admin.products'))
+
+    if request.method == 'POST':
+        try:
+            name = request.form.get('name', '').strip()
+            slug = request.form.get('slug', '').strip()
+            price = int(request.form.get('price', 0))
+            orig_price_str = request.form.get('original_price', '').strip()
+            orig_price = int(orig_price_str) if orig_price_str else None
+            category_id = request.form.get('category_id', '').strip() or None
+            badge = request.form.get('badge', '').strip()
+            description = request.form.get('description', '').strip()
+            is_active = request.form.get('is_active') == 'true'
+            image_url = request.form.get('image_url', '').strip()
+
+            if not name:
+                flash('상품명을 입력해주세요.', 'warning')
+                return redirect(url_for('admin.create_product'))
+
+            # 슬러그 자동 생성
+            if not slug:
+                import re, time
+                slug_base = re.sub(r'[^a-zA-Z0-9가-힣]+', '-', name).strip('-').lower()
+                slug = f"{slug_base}-{int(time.time())}" if slug_base else f"product-{int(time.time())}"
+
+            # 1. products 테이블에 신규 등록
+            insert_data = {
+                'name': name,
+                'slug': slug,
+                'price': price,
+                'original_price': orig_price,
+                'badge': badge,
+                'description': description,
+                'is_active': is_active
+            }
+            if category_id:
+                insert_data['category_id'] = category_id
+
+            p_res = db.table('products').insert(insert_data).execute()
+            if not p_res.data:
+                flash('상품 등록에 실패했습니다.', 'danger')
+                return redirect(url_for('admin.create_product'))
+
+            new_product = p_res.data[0]
+            product_id = new_product['id']
+
+            # 2. 대표 이미지 등록 (product_images)
+            if image_url:
+                try:
+                    db.table('product_images').insert({
+                        'product_id': product_id,
+                        'image_url': image_url,
+                        'is_primary': True,
+                        'sort_order': 0
+                    }).execute()
+                except Exception as img_err:
+                    logger.warning(f"상품 이미지 등록 오류: {img_err}")
+
+            # 3. 기본 옵션(색상/사이즈/재고) 입력 처리
+            opt_color = request.form.get('opt_color', '').strip() or '기본'
+            opt_size = request.form.get('opt_size', '').strip() or 'Free'
+            opt_stock = int(request.form.get('opt_stock', 50))
+
+            try:
+                db.table('product_options').insert({
+                    'product_id': product_id,
+                    'color': opt_color,
+                    'size': opt_size,
+                    'stock_quantity': opt_stock,
+                    'stock': opt_stock,
+                    'additional_price': 0
+                }).execute()
+            except Exception as opt_err:
+                logger.warning(f"초기 옵션 등록 오류: {opt_err}")
+
+            flash(f"신규 상품 [{name}]이(가) 성공적으로 등록되었습니다.", 'success')
+            return redirect(url_for('admin.edit_product', product_id=product_id))
+
+        except Exception as e:
+            logger.error(f"신규 상품 등록 오류: {e}")
+            flash(f"상품 등록 중 오류가 발생했습니다: {e}", 'danger')
+
+    # GET 요청: 카테고리 목록 로드
+    categories = []
+    try:
+        cat_res = db.table('categories').select('id, name').execute()
+        categories = cat_res.data or []
+    except Exception as e:
+        logger.warning(f"카테고리 로드 오류: {e}")
+
+    return render_template('admin/product_create.html', categories=categories)
+
+
+@admin_bp.route('/products/<product_id>/options', methods=['POST'])
+@admin_required
+def add_product_option(product_id):
+    """상품 옵션(색상, 사이즈, 재고) 신규 추가"""
+    db = get_db()
+    if not db:
+        flash('데이터베이스에 연결할 수 없습니다.', 'danger')
+        return redirect(url_for('admin.edit_product', product_id=product_id))
+
+    try:
+        color = request.form.get('color', '').strip()
+        size = request.form.get('size', '').strip()
+        stock = int(request.form.get('stock', 0))
+        add_price = int(request.form.get('additional_price', 0))
+
+        if not color or not size:
+            flash('옵션의 색상(Color)과 사이즈(Size)를 모두 입력해주세요.', 'warning')
+            return redirect(url_for('admin.edit_product', product_id=product_id))
+
+        db.table('product_options').insert({
+            'product_id': product_id,
+            'color': color,
+            'size': size,
+            'stock': stock,
+            'stock_quantity': stock,
+            'additional_price': add_price
+        }).execute()
+
+        flash(f"옵션 [{color} / {size} (재고 {stock}개)]이(가) 추가되었습니다.", 'success')
+    except Exception as e:
+        logger.error(f"상품 옵션 추가 오류: {e}")
+        flash(f"옵션 추가 중 오류가 발생했습니다: {e}", 'danger')
+
+    return redirect(url_for('admin.edit_product', product_id=product_id))
+
+
+@admin_bp.route('/products/<product_id>/options/<option_id>/update', methods=['POST'])
+@admin_required
+def update_product_option(product_id, option_id):
+    """상품 특정 옵션의 색상, 사이즈, 재고 수정"""
+    db = get_db()
+    if not db:
+        flash('데이터베이스에 연결할 수 없습니다.', 'danger')
+        return redirect(url_for('admin.edit_product', product_id=product_id))
+
+    try:
+        color = request.form.get('color', '').strip()
+        size = request.form.get('size', '').strip()
+        stock = int(request.form.get('stock', 0))
+        add_price = int(request.form.get('additional_price', 0))
+
+        update_payload = {
+            'stock': stock,
+            'stock_quantity': stock,
+            'additional_price': add_price
+        }
+        if color:
+            update_payload['color'] = color
+        if size:
+            update_payload['size'] = size
+
+        db.table('product_options').update(update_payload).eq('id', option_id).execute()
+        flash('옵션 정보가 수정되었습니다.', 'success')
+    except Exception as e:
+        logger.error(f"상품 옵션 수정 오류: {e}")
+        flash(f"옵션 수정 중 오류가 발생했습니다: {e}", 'danger')
+
+    return redirect(url_for('admin.edit_product', product_id=product_id))
+
+
+@admin_bp.route('/products/<product_id>/options/<option_id>/delete', methods=['POST'])
+@admin_required
+def delete_product_option(product_id, option_id):
+    """상품 특정 옵션 삭제"""
+    db = get_db()
+    if not db:
+        flash('데이터베이스에 연결할 수 없습니다.', 'danger')
+        return redirect(url_for('admin.edit_product', product_id=product_id))
+
+    try:
+        db.table('product_options').delete().eq('id', option_id).execute()
+        flash('해당 옵션이 삭제되었습니다.', 'info')
+    except Exception as e:
+        logger.error(f"상품 옵션 삭제 오류: {e}")
+        flash(f"옵션 삭제 중 오류가 발생했습니다: {e}", 'danger')
+
+    return redirect(url_for('admin.edit_product', product_id=product_id))
 
 
 # ==============================================================================

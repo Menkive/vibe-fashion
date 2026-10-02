@@ -7,28 +7,66 @@
     <a href="{{ url_for('admin.products') }}" class="btn btn-sm btn-outline-secondary mb-2">
         <i class="bi bi-arrow-left"></i> 상품 목록으로 돌아가기
     </a>
-    <h3 class="fw-bold mb-1">상품 정보 및 옵션 수정</h3>
-    <p class="text-secondary small mb-0">[{{ product.name }}] 상품의 기본 판매 가격, 뱃지 및 상태를 편집합니다.</p>
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h3 class="fw-bold mb-1">상품 정보 및 옵션 수정</h3>
+            <p class="text-secondary small mb-0">[{{ product.name }}] 상품의 가격, 이미지, 설명 및 색상/사이즈별 재고 옵션을 제어합니다.</p>
+        </div>
+        <div>
+            <a href="/products/{{ product.slug or product.id }}" target="_blank" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-box-arrow-up-right me-1"></i> 고객용 상품 페이지 보기
+            </a>
+        </div>
+    </div>
 </div>
 
 <div class="row g-4">
-    <div class="col-lg-8">
+    <!-- 좌측: 상품 기본 정보 수정 (이름, 가격, 할인가, 이미지, 판매여부, 설명) -->
+    <div class="col-lg-7">
         <div class="admin-card p-4">
+            <h5 class="fw-bold mb-3 border-bottom pb-2">기본 상품 정보</h5>
             <form method="POST" action="{{ url_for('admin.edit_product', product_id=product.id) }}">
                 <div class="mb-3">
-                    <label class="form-label fw-bold small">상품명</label>
+                    <label class="form-label fw-bold small">상품명 <span class="text-danger">*</span></label>
                     <input type="text" name="name" class="form-control" value="{{ product.name }}" required>
                 </div>
 
                 <div class="row g-3 mb-3">
                     <div class="col-md-6">
-                        <label class="form-label fw-bold small">판매 가격 (원)</label>
+                        <label class="form-label fw-bold small">카테고리</label>
+                        <select name="category_id" class="form-select">
+                            <option value="">카테고리 미지정</option>
+                            {% for cat in categories %}
+                                <option value="{{ cat.id }}" {% if product.category_id == cat.id %}selected{% endif %}>{{ cat.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">상품 슬러그 (Slug)</label>
+                        <input type="text" class="form-control font-monospace" value="{{ product.slug or '' }}" readonly disabled>
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">판매 가격 (할인가 / 원) <span class="text-danger">*</span></label>
                         <input type="number" name="price" class="form-control" value="{{ product.price|int }}" required>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label fw-bold small">정상 소비자가 (원 - 할인율 표시용)</label>
+                        <label class="form-label fw-bold small">정상 소비자가 (정가 / 원 - 할인율 표시)</label>
                         <input type="number" name="original_price" class="form-control" value="{{ product.original_price|int if product.original_price else '' }}" placeholder="미할인 시 비워둠">
                     </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold small">대표 상품 이미지 URL</label>
+                    <div class="input-group">
+                        <input type="text" name="image_url" id="imgInput" class="form-control" value="{{ primary_img_url }}" placeholder="/static/images/uniforms/... 또는 https://...">
+                        {% if primary_img_url %}
+                            <a href="{{ primary_img_url }}" target="_blank" class="btn btn-outline-secondary">미리보기</a>
+                        {% endif %}
+                    </div>
+                    <div class="form-text small">고객용 목록 및 상세 상단 대표 이미지로 등록/수정됩니다.</div>
                 </div>
 
                 <div class="row g-3 mb-3">
@@ -43,9 +81,9 @@
                         </select>
                     </div>
                     <div class="col-md-6">
-                        <label class="form-label fw-bold small">판매 노출 여부</label>
+                        <label class="form-label fw-bold small">판매 노출 상태</label>
                         <select name="is_active" class="form-select">
-                            <option value="true" {% if product.is_active %}selected{% endif %}>판매중 (고객 노출)</option>
+                            <option value="true" {% if product.is_active %}selected{% endif %}>판매중 (고객 화면 노출)</option>
                             <option value="false" {% if not product.is_active %}selected{% endif %}>판매중지 (미노출 / 품절)</option>
                         </select>
                     </div>
@@ -59,33 +97,98 @@
                 <div class="d-flex justify-content-end gap-2">
                     <a href="{{ url_for('admin.products') }}" class="btn btn-secondary px-4">취소</a>
                     <button type="submit" class="btn btn-primary px-4">
-                        <i class="bi bi-check-lg me-1"></i> 수정사항 저장
+                        <i class="bi bi-check-lg me-1"></i> 기본 정보 저장
                     </button>
                 </div>
             </form>
         </div>
     </div>
 
-    <!-- 옵션 및 재고 현황 (참조) -->
-    <div class="col-lg-4">
-        <div class="admin-card p-3">
-            <h6 class="fw-bold mb-3"><i class="bi bi-list-check text-primary me-1"></i> 현재 등록된 옵션 및 재고</h6>
+    <!-- 우측: 옵션 및 재고 관리 (color, size, stock) -->
+    <div class="col-lg-5">
+        <!-- 기존 옵션 목록 및 수정/삭제 -->
+        <div class="admin-card p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3 border-bottom pb-2">
+                <h5 class="fw-bold mb-0"><i class="bi bi-stack text-primary me-1"></i> 옵션 및 재고 관리</h5>
+                <span class="badge bg-primary">{{ options|length }}개 옵션</span>
+            </div>
+
             {% if options %}
-                <ul class="list-group list-group-flush small">
-                    {% for opt in options %}
-                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
-                        <div>
-                            <span class="fw-bold">{{ opt.color }}</span> / <span>{{ opt.size }}</span>
-                        </div>
-                        <span class="badge bg-light text-dark border">
-                            재고 {{ opt.stock if opt.stock is not none else opt.stock_quantity }}개
-                        </span>
-                    </li>
-                    {% endfor %}
-                </ul>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead class="table-light small">
+                            <tr>
+                                <th>색상</th>
+                                <th>사이즈</th>
+                                <th style="width: 75px;">재고</th>
+                                <th class="text-end" style="width: 95px;">수정/삭제</th>
+                            </tr>
+                        </thead>
+                        <tbody class="small">
+                            {% for opt in options %}
+                            <tr>
+                                <form method="POST" action="{{ url_for('admin.update_product_option', product_id=product.id, option_id=opt.id) }}">
+                                    <td>
+                                        <input type="text" name="color" class="form-control form-control-sm px-1 py-0" value="{{ opt.color or '' }}" style="font-size: 0.8rem;">
+                                    </td>
+                                    <td>
+                                        <input type="text" name="size" class="form-control form-control-sm px-1 py-0 font-monospace fw-bold" value="{{ opt.size or '' }}" style="font-size: 0.8rem;">
+                                    </td>
+                                    <td>
+                                        <input type="number" name="stock" class="form-control form-control-sm px-1 py-0 text-center fw-bold" 
+                                               value="{{ opt.stock if opt.stock is not none else opt.stock_quantity }}" min="0" style="font-size: 0.8rem;">
+                                    </td>
+                                    <td class="text-end">
+                                        <button type="submit" class="btn btn-sm btn-outline-primary p-0 px-1" title="저장" style="font-size: 0.72rem;">
+                                            <i class="bi bi-check"></i>
+                                        </button>
+                                </form>
+                                        <form method="POST" action="{{ url_for('admin.delete_product_option', product_id=product.id, option_id=opt.id) }}" class="d-inline" onsubmit="return confirm('이 옵션을 삭제하시겠습니까?');">
+                                            <button type="submit" class="btn btn-sm btn-outline-danger p-0 px-1" title="삭제" style="font-size: 0.72rem;">
+                                                <i class="bi bi-trash"></i>
+                                            </button>
+                                        </form>
+                                    </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             {% else %}
-                <p class="text-secondary small mb-0">등록된 상세 옵션이 없습니다. (단일 상품)</p>
+                <div class="text-center py-4 text-secondary small">
+                    등록된 상세 옵션이 없습니다.<br>아래 양식에서 색상과 사이즈별 재고를 추가해주세요.
+                </div>
             {% endif %}
+        </div>
+
+        <!-- 신규 옵션 추가 카드 -->
+        <div class="admin-card p-4">
+            <h6 class="fw-bold mb-3"><i class="bi bi-plus-circle text-success me-1"></i> 새 옵션 추가</h6>
+            <form method="POST" action="{{ url_for('admin.add_product_option', product_id=product.id) }}">
+                <div class="row g-2 mb-2">
+                    <div class="col-6">
+                        <label class="form-label small text-secondary mb-1">색상 (Color) <span class="text-danger">*</span></label>
+                        <input type="text" name="color" class="form-control form-control-sm" placeholder="예: 양산 블루, 화이트" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small text-secondary mb-1">사이즈 (Size) <span class="text-danger">*</span></label>
+                        <input type="text" name="size" class="form-control form-control-sm" placeholder="예: S, M, L, XL, Free" required>
+                    </div>
+                </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label small text-secondary mb-1">초기 재고 (Stock)</label>
+                        <input type="number" name="stock" class="form-control form-control-sm" value="30" min="0" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small text-secondary mb-1">추가 금액 (선택)</label>
+                        <input type="number" name="additional_price" class="form-control form-control-sm" value="0">
+                    </div>
+                </div>
+                <button type="submit" class="btn btn-success btn-sm w-100">
+                    <i class="bi bi-plus-lg me-1"></i> 옵션 추가하기
+                </button>
+            </form>
         </div>
     </div>
 </div>
