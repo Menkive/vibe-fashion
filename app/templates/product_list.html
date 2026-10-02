@@ -28,10 +28,11 @@
         <div class="row g-3 align-items-center justify-content-between">
             <!-- 카테고리 필터 버튼 그룹 -->
             <div class="col-md-8 d-flex flex-wrap gap-2" id="category-filter-group">
-                <button class="btn btn-sm btn-outline-dark active" data-category="전체">전체</button>
-                <button class="btn btn-sm btn-outline-dark" data-category="유니폼">유니폼</button>
-                <button class="btn btn-sm btn-outline-dark" data-category="응원용품">응원용품</button>
+                <button class="btn btn-sm btn-outline-dark active" data-category="전체">전체상품</button>
+                <button class="btn btn-sm btn-outline-dark" data-category="어센틱">어센틱</button>
+                <button class="btn btn-sm btn-outline-dark" data-category="캐주얼">캐주얼</button>
                 <button class="btn btn-sm btn-outline-dark" data-category="패션/잡화">패션/잡화</button>
+                <button class="btn btn-sm btn-outline-dark" data-category="응원용품">응원용품</button>
                 <button class="btn btn-sm btn-outline-dark" data-category="생활용품">생활용품</button>
             </div>
             <!-- 정렬 셀렉트박스 -->
@@ -115,20 +116,26 @@ document.addEventListener('DOMContentLoaded', () => {
     const noMsg = document.getElementById('no-products-msg');
     const countEl = document.getElementById('product-count');
 
-    // URL 파라미터로 초기 카테고리 설정 (예: /products?cat=유니폼)
+    // URL 파라미터로 초기 카테고리 설정 (예: /products?cat=어센틱)
     const urlParams = new URLSearchParams(window.location.search);
-    const initialCat = urlParams.get('cat');
+    const initialCat = urlParams.get('cat') || urlParams.get('category');
     if (initialCat) {
+        let matched = false;
         filterButtons.forEach(btn => {
-            if (btn.getAttribute('data-category') === initialCat) {
+            const btnCat = btn.getAttribute('data-category');
+            if (btnCat === initialCat || (initialCat === '유니폼' && btnCat === '어센틱')) {
                 btn.classList.add('active');
+                matched = true;
             } else {
                 btn.classList.remove('active');
             }
         });
+        if (!matched) {
+            filterButtons[0].classList.add('active');
+        }
     }
 
-    let currentCategory = initialCat || '전체';
+    let currentCategory = (initialCat === '유니폼' ? '어센틱' : (initialCat || '전체'));
     let currentSearch = '';
     let currentSort = 'popular';
 
@@ -160,10 +167,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const cat = item.getAttribute('data-category');
 
             let matchCat = false;
-            if (currentCategory === '전체') {
+            if (currentCategory === '전체' || currentCategory === '전체상품') {
                 matchCat = true;
-            } else if (currentCategory === '액세서리' || currentCategory === '굿즈/액세서리') {
-                matchCat = (cat === '응원용품' || cat === '패션/잡화' || cat === '생활용품' || cat === '액세서리');
             } else {
                 matchCat = (cat === currentCategory);
             }

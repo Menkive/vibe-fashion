@@ -79,16 +79,19 @@ def fetch_all_products():
                 cat_data = item.get('categories')
                 cat = cat_data.get('name') if isinstance(cat_data, dict) else (item.get('category') or '기타')
 
-                # product_images 조인 결과 파싱 (is_primary 우선)
+                # product_images 조인 결과 파싱 (is_primary 우선 및 전체 목록)
                 imgs = item.get('product_images') or []
                 primary_imgs = [i.get('image_url') for i in imgs if i.get('is_primary') and i.get('image_url')]
                 other_imgs = [i.get('image_url') for i in imgs if i.get('image_url')]
+                all_img_urls = [i.get('image_url') for i in sorted(imgs, key=lambda x: x.get('sort_order', 0)) if i.get('image_url')]
                 thumb = primary_imgs[0] if primary_imgs else (other_imgs[0] if other_imgs else '')
 
                 # INITIAL_PRODUCTS에서 fallback 이미지 및 카테고리 매칭
                 init_match = next((p for p in INITIAL_PRODUCTS if p.get('name') == item_name), None)
                 if not thumb and init_match:
                     thumb = init_match.get('thumbnail_url') or init_match.get('image_url') or ''
+                if not all_img_urls and init_match:
+                    all_img_urls = init_match.get('images', [thumb])
                 if (not cat or cat == '기타') and init_match:
                     cat = init_match.get('category') or cat
 
@@ -96,9 +99,9 @@ def fetch_all_products():
                 if any(ex in item_name for ex in excluded_names) or 'picsum.photos' in thumb:
                     continue
 
-                if '유니폼' in item_name or cat == '유니폼':
+                if '유니폼' in item_name or cat == '어센틱':
                     sizes = ["S", "M", "L", "XL", "XXL"]
-                elif cat in ['의류', '패션/잡화']:
+                elif cat in ['캐주얼', '패션/잡화']:
                     sizes = ["M", "L", "XL"]
                 else:
                     sizes = ["Free"]
@@ -125,6 +128,7 @@ def fetch_all_products():
                     "description": item.get('description', ''),
                     "image_url": thumb or '/static/images/uniforms/01-home-jersey.png',
                     "thumbnail_url": thumb or '/static/images/uniforms/01-home-jersey.png',
+                    "images": all_img_urls or [thumb or '/static/images/uniforms/01-home-jersey.png'],
                     "stock": item.get('stock', 50),
                     "sizes": sizes,
                     "badge": item.get('badge') or 'BEST',
@@ -383,11 +387,19 @@ def product_detail(product_id):
                 p_item = p_res.data[0]
                 category_name = (p_item.get('categories') or {}).get('name') if isinstance(p_item.get('categories'), dict) else (p_item.get('category') or '기타')
                 
-                # 이미지 추출 (is_primary 우선)
+                # 이미지 추출 (is_primary 우선 및 전체 목록)
                 imgs = p_item.get('product_images') or []
                 primary_imgs = [img.get('image_url') for img in imgs if img.get('is_primary') and img.get('image_url')]
                 other_imgs = [img.get('image_url') for img in imgs if img.get('image_url')]
+                sorted_imgs = [img.get('image_url') for img in sorted(imgs, key=lambda x: x.get('sort_order', 0)) if img.get('image_url')]
                 img_url = primary_imgs[0] if primary_imgs else (other_imgs[0] if other_imgs else '/static/images/home-uniform.png')
+
+                # INITIAL_PRODUCTS에서 다중 이미지 폴백 확인
+                init_match = next((p for p in INITIAL_PRODUCTS if p.get('name') == p_item.get('name')), None)
+                if not sorted_imgs and init_match:
+                    sorted_imgs = init_match.get('images', [img_url])
+                if not sorted_imgs:
+                    sorted_imgs = [img_url]
 
                 # 가격 정보 파싱
                 try:
@@ -412,6 +424,7 @@ def product_detail(product_id):
                     "description": p_item.get('description', ''),
                     "image_url": img_url,
                     "thumbnail_url": img_url,
+                    "images": sorted_imgs,
                     "badge": p_item.get('badge') or 'BEST',
                     "is_featured": p_item.get('is_featured', True)
                 }

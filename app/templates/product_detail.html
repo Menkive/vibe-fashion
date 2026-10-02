@@ -16,7 +16,7 @@
 
     <!-- 상품 상세 영역 -->
     <div class="row g-5">
-        <!-- 좌측: 대형 상품 이미지 -->
+        <!-- 좌측: 대형 상품 이미지 및 썸네일 갤러리 -->
         <div class="col-lg-6">
             <div class="card border-0 shadow-sm overflow-hidden rounded-4 sticky-top" style="top: 100px;">
                 <div class="position-relative" style="padding-top: 100%;">
@@ -24,6 +24,23 @@
                     <span class="product-badge-tag">{{ product.badge or 'OFFICIAL' }}</span>
                     <span class="product-badge-authentic">100% AUTHENTIC</span>
                 </div>
+
+                <!-- 썸네일 갤러리 (이미지 2장 이상일 때 썸네일 노출) -->
+                {% set product_images = product.images if product.images else [product.thumbnail_url or product.image_url] %}
+                {% if product_images|length > 1 %}
+                <div class="p-3 bg-white border-top">
+                    <div class="d-flex gap-2 overflow-auto" id="thumbnail-gallery-container" style="scrollbar-width: thin;">
+                        {% for img_path in product_images %}
+                        <button type="button" 
+                                class="btn p-0 border rounded-3 overflow-hidden thumbnail-btn {% if loop.first %}border-primary border-2 shadow-sm{% else %}border-secondary-subtle opacity-75{% endif %}"
+                                style="width: 72px; height: 72px; flex-shrink: 0; transition: all 0.2s ease;"
+                                onclick="changeMainImage('{{ img_path }}', this)">
+                            <img src="{{ img_path }}" alt="{{ product.name }} 썸네일 {{ loop.index }}" class="w-100 h-100 object-fit-cover">
+                        </button>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
             </div>
             <div class="p-3 mt-3 bg-light-subtle rounded-3 d-flex align-items-center justify-content-around text-muted small border">
                 <span><i class="bi bi-truck me-1 text-primary"></i> 전 상품 안심배송</span>
@@ -451,5 +468,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 });
+
+// 대표 이미지 변경 함수 (썸네일 클릭 시)
+function changeMainImage(imgUrl, btnEl) {
+    const mainImg = document.getElementById('main-product-image');
+    if (mainImg) {
+        mainImg.src = imgUrl;
+    }
+    // 썸네일 버튼 활성화 스타일 갱신
+    const buttons = document.querySelectorAll('.thumbnail-btn');
+    buttons.forEach(b => {
+        b.classList.remove('border-primary', 'border-2', 'shadow-sm');
+        b.classList.add('border-secondary-subtle', 'opacity-75');
+    });
+    if (btnEl) {
+        btnEl.classList.remove('border-secondary-subtle', 'opacity-75');
+        btnEl.classList.add('border-primary', 'border-2', 'shadow-sm');
+    }
+}
 </script>
 {% endblock %}

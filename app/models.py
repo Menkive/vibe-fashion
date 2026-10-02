@@ -3,17 +3,21 @@ from typing import List, Dict, Any, Optional
 
 # 양산시민축구단 공식 유니폼 및 2028 시즌 공식 굿즈 카탈로그
 INITIAL_PRODUCTS: List[Dict[str, Any]] = [
-    # [유니폼 - 27시즌 컬렉션]
+    # [1. 어센틱 (8종)]
     {
         "id": 1,
         "name": "27시즌 홈 유니폼",
         "slug": "27-season-home-jersey",
-        "category": "유니폼",
+        "category": "어센틱",
         "price": 109000,
         "original_price": 129000,
         "description": "양산시민축구단을 대표하는 27시즌 1st 유니폼입니다. 구단의 메인 컬러인 푸른색을 중심으로 구성하여 양산시민축구단의 정체성과 상징성을 가장 직접적으로 표현한 디자인입니다. 스포티하고 현대적인 축구 유니폼 디자인과 간결한 실루엣을 바탕으로, 경기장에서 선수들이 착용하는 홈 유니폼의 이미지를 살리면서도 팬들이 일상에서도 부담 없이 착용할 수 있는 깔끔하고 스포티한 스타일을 콘셉트로 합니다. 가슴에 새겨진 스우시 로고와 엠블럼이 조화를 이루며 실제 프로 축구 클럽의 경기용 킷을 연상시키는 스타일을 완성합니다.",
         "image_url": "/static/images/uniforms/01-home-jersey.png",
         "thumbnail_url": "/static/images/uniforms/01-home-jersey.png",
+        "images": [
+            "/static/images/uniforms/01-home-jersey.png",
+            "/static/images/uniforms/02-away-jersey.png"
+        ],
         "stock": 50,
         "sizes": ["S", "M", "L", "XL", "XXL"],
         "badge": "27 SEASON SALE",
@@ -25,12 +29,16 @@ INITIAL_PRODUCTS: List[Dict[str, Any]] = [
         "id": 2,
         "name": "27시즌 어웨이 유니폼",
         "slug": "27-season-away-jersey",
-        "category": "유니폼",
+        "category": "어센틱",
         "price": 109000,
         "original_price": 129000,
         "description": "원정 경기를 콘셉트로 제작된 양산시민축구단의 27시즌 2nd 유니폼입니다. 깨끗한 흰색을 기본으로 사용하고 푸른색 포인트를 더해 홈 유니폼과 뚜렷하게 대비되는 디자인을 완성했습니다. 밝고 산뜻한 인상을 강조하면서 구단의 대표 컬러를 자연스럽게 유지한 것이 특징입니다. 간결한 실루엣과 감각적인 배색으로 실제 프로 축구 클럽의 원정 킷을 연상시키는 스타일을 선사하며, 팬들이 경기장 응원은 물론 일상에서도 스타일리시하게 활용할 수 있습니다.",
         "image_url": "/static/images/uniforms/02-away-jersey.png",
         "thumbnail_url": "/static/images/uniforms/02-away-jersey.png",
+        "images": [
+            "/static/images/uniforms/02-away-jersey.png",
+            "/static/images/uniforms/01-home-jersey.png"
+        ],
         "stock": 42,
         "sizes": ["S", "M", "L", "XL", "XXL"],
         "badge": "27 SEASON SALE",
@@ -42,12 +50,15 @@ INITIAL_PRODUCTS: List[Dict[str, Any]] = [
         "id": 3,
         "name": "27시즌 서드 유니폼",
         "slug": "27-season-third-jersey",
-        "category": "유니폼",
+        "category": "어센틱",
         "price": 119000,
         "original_price": 139000,
         "description": "홈과 어웨이 유니폼에서 한 단계 벗어난 개성 있는 27시즌 3rd 유니폼입니다. 갈색과 브론즈 계열을 중심으로 차분하면서도 고급스러운 분위기를 표현했습니다. 일반적인 축구 유니폼에서는 보기 드문 색상 조합을 활용해 팬 컬렉션이나 특별한 경기에서 더욱 돋보일 수 있는 디자인을 콘셉트로 합니다. 현대적인 스포츠웨어 감성의 정밀 그래픽 패턴과 스포티한 실루엣이 더해져 실제 프로 축구 클럽의 한정판 킷을 연상시키는 스타일을 자랑합니다.",
         "image_url": "/static/images/uniforms/03-third-jersey.png",
         "thumbnail_url": "/static/images/uniforms/03-third-jersey.png",
+        "images": [
+            "/static/images/uniforms/03-third-jersey.png"
+        ],
         "stock": 30,
         "sizes": ["S", "M", "L", "XL", "XXL"],
         "badge": "27 SEASON SALE",
@@ -59,12 +70,15 @@ INITIAL_PRODUCTS: List[Dict[str, Any]] = [
         "id": 4,
         "name": "27시즌 스페셜 유니폼",
         "slug": "27-season-special-jersey",
-        "category": "유니폼",
+        "category": "어센틱",
         "price": 129000,
         "original_price": 149000,
         "description": "양산시민축구단의 대표 컬러인 푸른색을 활용한 특별판 유니폼입니다. 푸른색 계열의 세로 스트라이프 패턴을 강조하여 기존 홈 유니폼과는 또 다른 클래식하고 역동적인 분위기를 표현했습니다. 기념 경기, 특별 이벤트, 구단 창단 기념전 등 특별한 순간에 착용하는 한정판 유니폼을 연상시키는 디자인입니다. 역동적인 컬러 구성과 세련된 스포츠웨어 라인으로 경기장과 일상에서 모두 높은 소장 가치와 착용 만족감을 선사합니다.",
         "image_url": "/static/images/uniforms/06-special-jersey.png",
         "thumbnail_url": "/static/images/uniforms/06-special-jersey.png",
+        "images": [
+            "/static/images/uniforms/06-special-jersey.png"
+        ],
         "stock": 45,
         "sizes": ["S", "M", "L", "XL", "XXL"],
         "badge": "27 SEASON SALE",
@@ -76,12 +90,15 @@ INITIAL_PRODUCTS: List[Dict[str, Any]] = [
         "id": 5,
         "name": "27시즌 골키퍼 홈 유니폼",
         "slug": "27-season-gk-home-jersey",
-        "category": "유니폼",
+        "category": "어센틱",
         "price": 119000,
         "original_price": 139000,
         "description": "강렬한 레드 컬러를 중심으로 디자인한 27시즌 골키퍼 홈 유니폼입니다. 선명한 붉은색을 기본으로 검정색과 짙은 적색 계열의 거친 브러시 패턴을 곳곳에 적용하여 골키퍼 특유의 강인하고 역동적인 이미지를 표현했습니다. 필드 플레이어의 푸른색 유니폼과 경기장에서 명확하게 구분되며, 화이트 로고와 'YANGSAN CITIZEN FC' 등의 요소가 붉은 배경과 선명하게 대비되도록 구성된 것이 특징입니다. 프로페셔널한 경기용 킷의 분위기를 담아 실제 경기장과 일상 모두에서 시선을 사로잡습니다.",
         "image_url": "/static/images/uniforms/05-gk-home-jersey.png",
         "thumbnail_url": "/static/images/uniforms/05-gk-home-jersey.png",
+        "images": [
+            "/static/images/uniforms/05-gk-home-jersey.png"
+        ],
         "stock": 35,
         "sizes": ["S", "M", "L", "XL", "XXL"],
         "badge": "27 SEASON SALE",
@@ -93,12 +110,15 @@ INITIAL_PRODUCTS: List[Dict[str, Any]] = [
         "id": 6,
         "name": "27시즌 골키퍼 어웨이 유니폼",
         "slug": "27-season-gk-away-jersey",
-        "category": "유니폼",
+        "category": "어센틱",
         "price": 119000,
         "original_price": 139000,
         "description": "밝고 선명한 에메랄드·그린 계열을 중심으로 제작된 27시즌 골키퍼 어웨이 유니폼입니다. 짙은 녹색과 검정색 브러시 패턴을 조합하여 홈 골키퍼 유니폼과 동일한 디자인 계열을 유지하면서 색상으로 확실한 차이를 표현했습니다. 그린 컬러 특유의 생동감과 에너지를 강조해 실제 경기장에서 착용하는 전문 골키퍼 킷과 같은 분위기를 연출합니다. 간결한 실루엣과 스포티하고 현대적인 디자인으로 경기 관람 및 일상 스포츠웨어로도 훌륭한 매치를 보여줍니다.",
         "image_url": "/static/images/uniforms/04-gk-away-jersey.png",
         "thumbnail_url": "/static/images/uniforms/04-gk-away-jersey.png",
+        "images": [
+            "/static/images/uniforms/04-gk-away-jersey.png"
+        ],
         "stock": 35,
         "sizes": ["S", "M", "L", "XL", "XXL"],
         "badge": "27 SEASON SALE",
@@ -106,52 +126,269 @@ INITIAL_PRODUCTS: List[Dict[str, Any]] = [
         "is_new": False,
         "sales_count": 790
     },
-    # [응원용품]
     {
         "id": 7,
-        "name": "2028 양산시민축구단 오피셜 서포터 머플러",
-        "slug": "yangsan-fc-official-supporter-muffler",
-        "category": "응원용품",
-        "price": 22000,
-        "original_price": 25000,
-        "description": "양산시민축구단 공식 엠블럼과 로고가 정밀 자카드 편직된 공식 서포터 니트 머플러입니다. 경기장 응원 및 일상 코디에 최적화되었습니다.",
-        "image_url": "/static/images/yangsan-fc-muffler.png",
-        "thumbnail_url": "/static/images/yangsan-fc-muffler.png",
-        "stock": 100,
-        "sizes": ["Free"],
-        "badge": "BEST",
+        "name": "양산시민축구단 퍼포먼스 트레이닝 탑 – 블루",
+        "slug": "yangsan-fc-performance-training-top",
+        "category": "어센틱",
+        "price": 69000,
+        "original_price": 79000,
+        "description": "양산시민축구단 공식 선수단 지급용 퍼포먼스 트레이닝 탑입니다. 흡한속건 기능성 원단을 채택하여 최상의 착용감을 선사합니다.",
+        "image_url": "/static/images/products/authentic-training-top.png",
+        "thumbnail_url": "/static/images/products/authentic-training-top.png",
+        "images": [
+            "/static/images/products/authentic-training-top.png",
+            "/static/images/products/authentic-training-pants.png"
+        ],
+        "stock": 80,
+        "sizes": ["S", "M", "L", "XL"],
+        "badge": "NEW",
         "is_featured": True,
         "is_new": True,
-        "sales_count": 2850
+        "sales_count": 310
     },
     {
         "id": 8,
-        "name": "2028 양산시민축구단 오피셜 스티커&배지 세트",
-        "slug": "yangsan-fc-official-sticker-badge-set",
-        "category": "응원용품",
-        "price": 12000,
-        "original_price": 15000,
-        "description": "고급 골드 메탈 프레임 엠블럼 마그네틱/핀 배지와 방수 PVC 공식 그래픽 스티커 5종으로 구성된 구단 오피셜 기프트 세트입니다.",
-        "image_url": "/static/images/yangsan-fc-badge-sticker-set.png",
-        "thumbnail_url": "/static/images/yangsan-fc-badge-sticker-set.png",
-        "stock": 120,
-        "sizes": ["Free"],
-        "badge": "MD추천",
+        "name": "양산시민축구단 퍼포먼스 트레이닝 팬츠 – 블루",
+        "slug": "yangsan-fc-performance-training-pants",
+        "category": "어센틱",
+        "price": 65000,
+        "original_price": 75000,
+        "description": "격렬한 훈련과 일상 활동에 모두 적합한 양산시민축구단 공식 어센틱 트레이닝 팬츠입니다.",
+        "image_url": "/static/images/products/authentic-training-pants.png",
+        "thumbnail_url": "/static/images/products/authentic-training-pants.png",
+        "images": [
+            "/static/images/products/authentic-training-pants.png",
+            "/static/images/products/authentic-training-top.png"
+        ],
+        "stock": 70,
+        "sizes": ["S", "M", "L", "XL"],
+        "badge": "NEW",
         "is_featured": True,
         "is_new": True,
-        "sales_count": 1470
+        "sales_count": 280
     },
-    # [패션/잡화]
+
+    # [2. 캐주얼 (6종)]
     {
         "id": 9,
+        "name": "양산시민축구단 클래식 트랙 재킷 – 블루",
+        "slug": "yangsan-fc-classic-track-jacket-blue",
+        "category": "캐주얼",
+        "price": 89000,
+        "original_price": 99000,
+        "description": "감각적인 로열 블루 컬러와 레트로 파이핑 디테일이 돋보이는 오피셜 라이프스타일 트랙 재킷입니다.",
+        "image_url": "/static/images/products/casual-track-jacket-blue.png",
+        "thumbnail_url": "/static/images/products/casual-track-jacket-blue.png",
+        "images": [
+            "/static/images/products/casual-track-jacket-blue.png",
+            "/static/images/products/casual-track-jacket-white.png"
+        ],
+        "stock": 60,
+        "sizes": ["M", "L", "XL"],
+        "badge": "BEST",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 420
+    },
+    {
+        "id": 10,
+        "name": "양산시민축구단 클래식 트랙 재킷 – 화이트",
+        "slug": "yangsan-fc-classic-track-jacket-white",
+        "category": "캐주얼",
+        "price": 89000,
+        "original_price": 99000,
+        "description": "가벼운 방풍 기능과 클래식한 엠블럼 자수로 완성된 데일리 트랙 재킷입니다.",
+        "image_url": "/static/images/products/casual-track-jacket-white.png",
+        "thumbnail_url": "/static/images/products/casual-track-jacket-white.png",
+        "images": [
+            "/static/images/products/casual-track-jacket-white.png",
+            "/static/images/products/casual-track-jacket-blue.png"
+        ],
+        "stock": 50,
+        "sizes": ["M", "L", "XL"],
+        "badge": "BEST",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 390
+    },
+    {
+        "id": 11,
+        "name": "양산시민축구단 프리미엄 후드 집업 – 블루",
+        "slug": "yangsan-fc-premium-hoodie-zipup",
+        "category": "캐주얼",
+        "price": 79000,
+        "original_price": 89000,
+        "description": "가슴 부위 양산FC 볼드 자수와 고급 지퍼 플러가 적용되어 경기 관람 및 일상에서 편안하게 착용 가능합니다.",
+        "image_url": "/static/images/products/casual-hoodie-zipup.png",
+        "thumbnail_url": "/static/images/products/casual-hoodie-zipup.png",
+        "images": [
+            "/static/images/products/casual-hoodie-zipup.png"
+        ],
+        "stock": 55,
+        "sizes": ["S", "M", "L", "XL"],
+        "badge": "NEW",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 330
+    },
+    {
+        "id": 12,
+        "name": "양산시민축구단 블루 퍼포먼스 쇼츠",
+        "slug": "yangsan-fc-blue-performance-shorts",
+        "category": "캐주얼",
+        "price": 39000,
+        "original_price": 45000,
+        "description": "우수한 통기성과 허리 밴딩 스트링으로 최고의 활동성을 제공하는 다목적 쇼츠입니다.",
+        "image_url": "/static/images/products/casual-shorts.png",
+        "thumbnail_url": "/static/images/products/casual-shorts.png",
+        "images": [
+            "/static/images/products/casual-shorts.png"
+        ],
+        "stock": 70,
+        "sizes": ["M", "L", "XL"],
+        "badge": "",
+        "is_featured": False,
+        "is_new": False,
+        "sales_count": 210
+    },
+    {
+        "id": 13,
+        "name": "키즈 홈 유니폼 세트",
+        "slug": "kids-home-uniform-set",
+        "category": "캐주얼",
+        "price": 55000,
+        "original_price": 65000,
+        "description": "양산시민축구단 공식 어린이 홈 유니폼 세트입니다. 통기성과 신축성이 뛰어난 프리미엄 기능성 원단으로 상·하의 일체형 세트 구성입니다.",
+        "image_url": "/static/images/products/casual-kids-home.png",
+        "thumbnail_url": "/static/images/products/casual-kids-home.png",
+        "images": [
+            "/static/images/products/casual-kids-home.png",
+            "/static/images/products/casual-kids-away.png"
+        ],
+        "stock": 40,
+        "sizes": ["110 (4~5세)", "120 (6~7세)", "130 (8~9세)", "140 (10~11세)"],
+        "badge": "KIDS",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 480
+    },
+    {
+        "id": 14,
+        "name": "키즈 어웨이 유니폼 세트",
+        "slug": "kids-away-uniform-set",
+        "category": "캐주얼",
+        "price": 55000,
+        "original_price": 65000,
+        "description": "깨끗하고 세련된 화이트&골드 배색의 양산시민축구단 공식 어린이 원정 유니폼 세트입니다. 활동량이 많은 아이들에게 편안한 착용감을 제공합니다.",
+        "image_url": "/static/images/products/casual-kids-away.png",
+        "thumbnail_url": "/static/images/products/casual-kids-away.png",
+        "images": [
+            "/static/images/products/casual-kids-away.png",
+            "/static/images/products/casual-kids-home.png"
+        ],
+        "stock": 35,
+        "sizes": ["110 (4~5세)", "120 (6~7세)", "130 (8~9세)", "140 (10~11세)"],
+        "badge": "KIDS",
+        "is_featured": False,
+        "is_new": True,
+        "sales_count": 360
+    },
+    {
+        "id": 141,
+        "name": "키즈 반팔 티셔츠",
+        "slug": "kids-short-sleeve-tshirt",
+        "category": "캐주얼",
+        "price": 25000,
+        "original_price": 29000,
+        "description": "구단 엠블럼과 로고가 돋보이는 키즈 전용 100% 면 싱글 반팔 티셔츠입니다. 부드러운 터치감과 우수한 땀 흡수력으로 일상과 경기 관람 시 편안하게 착용할 수 있습니다.",
+        "image_url": "/static/images/products/kids-tshirt.png",
+        "thumbnail_url": "/static/images/products/kids-tshirt.png",
+        "images": [
+            "/static/images/products/kids-tshirt.png"
+        ],
+        "stock": 125,
+        "sizes": ["110 (4~5세)", "120 (6~7세)", "130 (8~9세)", "140 (10~11세)"],
+        "badge": "KIDS",
+        "is_featured": False,
+        "is_new": True,
+        "sales_count": 120
+    },
+    {
+        "id": 142,
+        "name": "키즈 후드티",
+        "slug": "kids-hoodie",
+        "category": "캐주얼",
+        "price": 45000,
+        "original_price": 52000,
+        "description": "도톰하고 포근한 헤비웨이트 코튼 프렌치 테리 원단의 어린이 후드티입니다. 캥거루 포켓과 넉넉한 후드로 환절기 야외 활동 및 경기 응원에 최적화되어 있습니다.",
+        "image_url": "/static/images/products/kids-hoodie.png",
+        "thumbnail_url": "/static/images/products/kids-hoodie.png",
+        "images": [
+            "/static/images/products/kids-hoodie.png"
+        ],
+        "stock": 100,
+        "sizes": ["110 (4~5세)", "120 (6~7세)", "130 (8~9세)", "140 (10~11세)"],
+        "badge": "KIDS",
+        "is_featured": False,
+        "is_new": True,
+        "sales_count": 150
+    },
+    {
+        "id": 143,
+        "name": "키즈 맨투맨",
+        "slug": "kids-sweatshirt",
+        "category": "캐주얼",
+        "price": 39000,
+        "original_price": 45000,
+        "description": "양산FC 볼드 타이포와 엠블럼 패치가 적용된 데일리 키즈 크루넥 맨투맨입니다. 신축성 있는 립 조직 시보리로 활동성과 내구성을 동시에 갖추었습니다.",
+        "image_url": "/static/images/products/kids-sweatshirt.png",
+        "thumbnail_url": "/static/images/products/kids-sweatshirt.png",
+        "images": [
+            "/static/images/products/kids-sweatshirt.png"
+        ],
+        "stock": 90,
+        "sizes": ["110 (4~5세)", "120 (6~7세)", "130 (8~9세)", "140 (10~11세)"],
+        "badge": "KIDS",
+        "is_featured": False,
+        "is_new": True,
+        "sales_count": 110
+    },
+    {
+        "id": 144,
+        "name": "키즈 트레이닝 세트",
+        "slug": "kids-training-set",
+        "category": "캐주얼",
+        "price": 69000,
+        "original_price": 79000,
+        "description": "집업 재킷과 트레이닝 팬츠로 구성된 주니어 유소년 스포츠 트레이닝 세트입니다. 방풍 기능성 스트레치 원단으로 축구 교실 및 야외 체육 활동에 제격입니다.",
+        "image_url": "/static/images/products/kids-training-set.png",
+        "thumbnail_url": "/static/images/products/kids-training-set.png",
+        "images": [
+            "/static/images/products/kids-training-set.png"
+        ],
+        "stock": 80,
+        "sizes": ["110 (4~5세)", "120 (6~7세)", "130 (8~9세)", "140 (10~11세)"],
+        "badge": "BEST",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 280
+    },
+
+    # [3. 패션/잡화 (4종)]
+    {
+        "id": 15,
         "name": "2028 양산시민축구단 오피셜 엠블럼 볼캡",
         "slug": "yangsan-fc-official-emblem-ballcap",
         "category": "패션/잡화",
         "price": 29000,
         "original_price": 34000,
         "description": "양산FC 시그니처 로열 블루 원단에 정밀 입체 자수 엠블럼과 골드 파이핑 챙 디테일을 더한 공식 경기용 볼캡입니다.",
-        "image_url": "/static/images/yangsan-fc-ballcap.png",
-        "thumbnail_url": "/static/images/yangsan-fc-ballcap.png",
+        "image_url": "/static/images/products/fashion-ballcap.png",
+        "thumbnail_url": "/static/images/products/fashion-ballcap.png",
+        "images": [
+            "/static/images/products/fashion-ballcap.png"
+        ],
         "stock": 85,
         "sizes": ["Free"],
         "badge": "HOT",
@@ -160,15 +397,19 @@ INITIAL_PRODUCTS: List[Dict[str, Any]] = [
         "sales_count": 1920
     },
     {
-        "id": 10,
+        "id": 16,
         "name": "2028 양산시민축구단 클래식 엠블럼 토트백",
         "slug": "yangsan-fc-classic-emblem-tote-bag",
         "category": "패션/잡화",
         "price": 24000,
         "original_price": 28000,
         "description": "고밀도 캔버스 코튼 원단에 구단 공식 엠블럼이 실크스크린 프린팅된 데일리 에코 토트백입니다. 넉넉한 수납공간을 제공합니다.",
-        "image_url": "/static/images/yangsan-fc-tote-bag.png",
-        "thumbnail_url": "/static/images/yangsan-fc-tote-bag.png",
+        "image_url": "/static/images/products/goods-totebag.png",
+        "thumbnail_url": "/static/images/products/goods-totebag.png",
+        "images": [
+            "/static/images/products/goods-totebag.png",
+            "/static/images/products/goods-gymsack.png"
+        ],
         "stock": 60,
         "sizes": ["Free"],
         "badge": "NEW",
@@ -177,15 +418,39 @@ INITIAL_PRODUCTS: List[Dict[str, Any]] = [
         "sales_count": 1240
     },
     {
-        "id": 11,
+        "id": 17,
+        "name": "양산시민축구단 서포터즈 짐색 – 블루",
+        "slug": "yangsan-fc-supporters-gymsack-blue",
+        "category": "패션/잡화",
+        "price": 25000,
+        "original_price": 30000,
+        "description": "방수 코팅 원단과 편리한 드로스트링 구조로 축구화, 유니폼, 개인 소지품을 간편하게 수납할 수 있습니다.",
+        "image_url": "/static/images/products/goods-gymsack.png",
+        "thumbnail_url": "/static/images/products/goods-gymsack.png",
+        "images": [
+            "/static/images/products/goods-gymsack.png",
+            "/static/images/products/goods-totebag.png"
+        ],
+        "stock": 50,
+        "sizes": ["Free"],
+        "badge": "HOT",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 510
+    },
+    {
+        "id": 18,
         "name": "2028 양산시민축구단 쉴드 엠블럼 키링",
         "slug": "yangsan-fc-shield-emblem-keyring",
         "category": "패션/잡화",
         "price": 9000,
         "original_price": 11000,
         "description": "양산시민축구단의 상징 쉴드 엠블럼을 정밀 양각 메탈로 구현한 공식 키링으로 가방, 열쇠고리, 파우치 등에 고급스럽게 매치할 수 있습니다.",
-        "image_url": "/static/images/yangsan-fc-keyring.png",
-        "thumbnail_url": "/static/images/yangsan-fc-keyring.png",
+        "image_url": "/static/images/products/goods-keyring.png",
+        "thumbnail_url": "/static/images/products/goods-keyring.png",
+        "images": [
+            "/static/images/products/goods-keyring.png"
+        ],
         "stock": 150,
         "sizes": ["Free"],
         "badge": "BEST",
@@ -193,17 +458,166 @@ INITIAL_PRODUCTS: List[Dict[str, Any]] = [
         "is_new": True,
         "sales_count": 2150
     },
-    # [생활용품]
+
+    # [4. 응원용품 (6종)]
     {
-        "id": 12,
+        "id": 19,
+        "name": "2028 양산시민축구단 오피셜 서포터 머플러",
+        "slug": "yangsan-fc-official-supporter-muffler",
+        "category": "응원용품",
+        "price": 22000,
+        "original_price": 26000,
+        "description": "구단의 슬로건과 엠블럼이 자카드 니트로 편직된 공식 응원 머플러입니다. 쌀쌀한 날씨의 매치데이와 경기장 응원에 필수적인 아이템입니다.",
+        "image_url": "/static/images/products/cheering-muffler.png",
+        "thumbnail_url": "/static/images/products/cheering-muffler.png",
+        "images": [
+            "/static/images/products/cheering-muffler.png"
+        ],
+        "stock": 120,
+        "sizes": ["Free"],
+        "badge": "BEST",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 2400
+    },
+    {
+        "id": 20,
+        "name": "양산시민축구단 시그니처 매치볼 (5호구)",
+        "slug": "yangsan-fc-signature-matchball",
+        "category": "응원용품",
+        "price": 48000,
+        "original_price": 55000,
+        "description": "최적의 반발력과 완벽한 구형 유지를 자랑하는 하이브리드 제봉 방식의 공식 매치볼입니다.",
+        "image_url": "/static/images/products/cheering-matchball.png",
+        "thumbnail_url": "/static/images/products/cheering-matchball.png",
+        "images": [
+            "/static/images/products/cheering-matchball.png"
+        ],
+        "stock": 35,
+        "sizes": ["5호"],
+        "badge": "BEST",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 410
+    },
+    {
+        "id": 21,
+        "name": "양산시민축구단 공식 응원 깃발",
+        "slug": "yangsan-fc-official-cheering-flag",
+        "category": "응원용품",
+        "price": 15000,
+        "original_price": 18000,
+        "description": "가볍고 튼튼한 경량 봉과 선명한 승화전사 프린팅으로 제작된 서포터즈 필수 깃발입니다.",
+        "image_url": "/static/images/products/cheering-flag.png",
+        "thumbnail_url": "/static/images/products/cheering-flag.png",
+        "images": [
+            "/static/images/products/cheering-flag.png",
+            "/static/images/products/cheering-flag-large.png"
+        ],
+        "stock": 100,
+        "sizes": ["Free"],
+        "badge": "",
+        "is_featured": False,
+        "is_new": True,
+        "sales_count": 520
+    },
+    {
+        "id": 22,
+        "name": "양산시민축구단 서포터즈 플래그 – 블루 대형",
+        "slug": "yangsan-fc-supporters-flag-large",
+        "category": "응원용품",
+        "price": 32000,
+        "original_price": 38000,
+        "description": "150x100cm 대형 사이즈로 제작되어 열정적인 홈 경기 응원에 최적화된 플래그입니다.",
+        "image_url": "/static/images/products/cheering-flag-large.png",
+        "thumbnail_url": "/static/images/products/cheering-flag-large.png",
+        "images": [
+            "/static/images/products/cheering-flag-large.png",
+            "/static/images/products/cheering-flag-small.png"
+        ],
+        "stock": 40,
+        "sizes": ["대형"],
+        "badge": "NEW",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 310
+    },
+    {
+        "id": 23,
+        "name": "양산시민축구단 서포터즈 플래그 – 블루 소형",
+        "slug": "yangsan-fc-supporters-flag-small",
+        "category": "응원용품",
+        "price": 18000,
+        "original_price": 22000,
+        "description": "60x40cm 규격으로 가족 단위 팬이나 가벼운 관람 시 손쉽게 흔들 수 있는 응원 깃발입니다.",
+        "image_url": "/static/images/products/cheering-flag-small.png",
+        "thumbnail_url": "/static/images/products/cheering-flag-small.png",
+        "images": [
+            "/static/images/products/cheering-flag-small.png",
+            "/static/images/products/cheering-flag-large.png"
+        ],
+        "stock": 60,
+        "sizes": ["소형"],
+        "badge": "",
+        "is_featured": False,
+        "is_new": True,
+        "sales_count": 270
+    },
+    {
+        "id": 24,
+        "name": "2028 양산시민축구단 오피셜 엠블럼 스티커&배지 세트",
+        "slug": "yangsan-fc-official-sticker-badge-set",
+        "category": "응원용품",
+        "price": 12000,
+        "original_price": 15000,
+        "description": "구단 공식 메탈 핀배지 2종과 방수 코팅 엠블럼 스티커 6종으로 구성된 올인원 서포터즈 팩입니다. 노트북, 텀블러 등에 부착하기 좋습니다.",
+        "image_url": "/static/images/products/goods-badge-sticker.png",
+        "thumbnail_url": "/static/images/products/goods-badge-sticker.png",
+        "images": [
+            "/static/images/products/goods-badge-sticker.png"
+        ],
+        "stock": 200,
+        "sizes": ["Free"],
+        "badge": "MD추천",
+        "is_featured": False,
+        "is_new": True,
+        "sales_count": 1650
+    },
+
+    # [5. 생활용품 (3종)]
+    {
+        "id": 25,
+        "name": "양산시민축구단 프리미엄 서포터즈 엄브렐라",
+        "slug": "yangsan-fc-premium-supporters-umbrella",
+        "category": "생활용품",
+        "price": 29000,
+        "original_price": 35000,
+        "description": "양산FC 시그니처 엠블럼과 튼튼한 유리섬유 FRP 살대로 제작되어 경기장 우천 관람 및 일상 생활에서 든든하게 사용할 수 있습니다.",
+        "image_url": "/static/images/products/goods-umbrella.png",
+        "thumbnail_url": "/static/images/products/goods-umbrella.png",
+        "images": [
+            "/static/images/products/goods-umbrella.png"
+        ],
+        "stock": 40,
+        "sizes": ["Free"],
+        "badge": "NEW",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 340
+    },
+    {
+        "id": 26,
         "name": "2028 양산시민축구단 블루&골드 엠블럼 머그컵",
         "slug": "yangsan-fc-blue-gold-emblem-mug",
         "category": "생활용품",
         "price": 14000,
         "original_price": 16000,
         "description": "양산FC의 시그니처 딥 네이비와 골드 엠블럼 그래픽이 적용된 세라믹 머그컵(350ml)으로 일상과 사무실에서 팀의 열정을 함께합니다.",
-        "image_url": "/static/images/yangsan-fc-mug.png",
-        "thumbnail_url": "/static/images/yangsan-fc-mug.png",
+        "image_url": "/static/images/products/goods-mug.png",
+        "thumbnail_url": "/static/images/products/goods-mug.png",
+        "images": [
+            "/static/images/products/goods-mug.png"
+        ],
         "stock": 80,
         "sizes": ["Free"],
         "badge": "MD추천",
@@ -212,38 +626,24 @@ INITIAL_PRODUCTS: List[Dict[str, Any]] = [
         "sales_count": 1380
     },
     {
-        "id": 13,
+        "id": 27,
         "name": "2028 양산시민축구단 엠블럼 전술 노트",
         "slug": "yangsan-fc-emblem-tactical-notebook",
         "category": "생활용품",
         "price": 8000,
         "original_price": 10000,
         "description": "하드커버 표지에 금박 양각 엠블럼이 새겨진 구단 공식 전술 & 데일리 하드커버 유선 노트입니다. 축구 기록과 일상 메모에 제격입니다.",
-        "image_url": "/static/images/yangsan-fc-tactical-notebook.png",
-        "thumbnail_url": "/static/images/yangsan-fc-tactical-notebook.png",
+        "image_url": "/static/images/products/goods-notebook.png",
+        "thumbnail_url": "/static/images/products/goods-notebook.png",
+        "images": [
+            "/static/images/products/goods-notebook.png"
+        ],
         "stock": 90,
         "sizes": ["Free"],
         "badge": "NEW",
         "is_featured": False,
         "is_new": True,
         "sales_count": 960
-    },
-    {
-        "id": 14,
-        "name": "2028 양산시민축구단 오피셜 응원타월",
-        "slug": "yangsan-fc-official-cheering-towel",
-        "category": "응원용품",
-        "price": 15000,
-        "original_price": 18000,
-        "description": "양산종합운동장을 푸른 함성으로 물들일 구단 공식 응원 슬로건 타월입니다. 흡습속건 기능성 극세사 타월로 경기 관람과 스포츠 활동 시 최적의 쾌적함을 선사합니다.",
-        "image_url": "/static/images/yangsan-fc-muffler.png",
-        "thumbnail_url": "/static/images/yangsan-fc-muffler.png",
-        "stock": 100,
-        "sizes": ["Free"],
-        "badge": "BEST",
-        "is_featured": True,
-        "is_new": True,
-        "sales_count": 2100
     }
 ]
 

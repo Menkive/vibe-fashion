@@ -77,17 +77,26 @@
                         <a class="nav-link" href="{{ url_for('main.index') }}">홈</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.product_list') }}">전체 상품</a>
+                        <a class="nav-link" href="{{ url_for('main.product_list') }}">전체상품</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.product_list', cat='유니폼') }}">어센틱 유니폼</a>
+                        <a class="nav-link" href="{{ url_for('main.product_list', cat='어센틱') }}">어센틱</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.product_list', cat='액세서리') }}">굿즈/액세서리</a>
+                        <a class="nav-link" href="{{ url_for('main.product_list', cat='캐주얼') }}">캐주얼</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.product_list', cat='패션/잡화') }}">패션/잡화</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.product_list', cat='응원용품') }}">응원용품</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.product_list', cat='생활용품') }}">생활용품</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link text-warning fw-bold" href="{{ url_for('main.vote_page') }}">
-                            <i class="bi bi-patch-check-fill me-1"></i> 2027 유니폼 팬투표
+                            <i class="bi bi-patch-check-fill me-1"></i> 팬투표
                         </a>
                     </li>
                 </ul>
