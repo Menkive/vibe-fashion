@@ -209,23 +209,91 @@
                             </div>
 
                             <!-- 탭2: 주문 내역 -->
-                            <div class="tab-pane fade py-5 text-center" id="orders-pane" role="tabpanel" aria-labelledby="orders-tab" tabindex="0">
-                                <div class="text-muted">
-                                    <i class="bi bi-box2 display-4 d-block mb-3 text-secondary opacity-50"></i>
-                                    <h6 class="fw-bold text-dark mb-1">아직 주문 내역이 없습니다</h6>
-                                    <p class="small text-muted mb-3">구단 공식 굿즈와 어센틱 유니폼을 구매해 보세요.</p>
-                                    <a href="{{ url_for('main.product_list') }}" class="btn btn-sm btn-outline-primary">
-                                        <i class="bi bi-bag me-1"></i>상품 둘러보기
-                                    </a>
-                                </div>
+                            <div class="tab-pane fade py-4" id="orders-pane" role="tabpanel" aria-labelledby="orders-tab" tabindex="0">
+                                {% if orders %}
+                                    <div class="table-responsive text-start">
+                                        <table class="table align-middle">
+                                            <thead class="table-light small text-secondary">
+                                                <tr>
+                                                    <th>주문번호 / 일시</th>
+                                                    <th>상품 정보</th>
+                                                    <th class="text-center">수량</th>
+                                                    <th class="text-end">결제금액</th>
+                                                    <th class="text-center">상태</th>
+                                                    <th class="text-center">관리</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="small">
+                                                {% for o in orders %}
+                                                <tr>
+                                                    <td>
+                                                        <div class="fw-bold font-monospace text-primary">{{ o.order_number }}</div>
+                                                        <div class="text-secondary" style="font-size: 0.75rem;">{{ o.created_at[:16].replace('T', ' ') if o.created_at else '-' }}</div>
+                                                    </td>
+                                                    <td>
+                                                        {% if o.items %}
+                                                            <div class="fw-semibold text-dark">{{ o.items[0].product_name }}</div>
+                                                            <div class="text-secondary" style="font-size: 0.75rem;">{{ o.items[0].option_info }}</div>
+                                                            {% if o.items|length > 1 %}
+                                                                <div class="text-muted" style="font-size: 0.75rem;">외 {{ o.items|length - 1 }}개 품목</div>
+                                                            {% endif %}
+                                                        {% else %}
+                                                            <span class="text-secondary">주문 상품 정보</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-center fw-semibold">{{ o.items_count or 1 }}개</td>
+                                                    <td class="text-end fw-bold text-dark font-monospace">{{ o.final_amount | locale_currency }}</td>
+                                                    <td class="text-center">
+                                                        {% if o.status == 'paid' %}
+                                                            <span class="badge bg-success-subtle text-success border border-success-subtle">결제완료</span>
+                                                        {% elif o.status == 'preparing' %}
+                                                            <span class="badge bg-info-subtle text-info border border-info-subtle">상품준비중</span>
+                                                        {% elif o.status == 'shipping' %}
+                                                            <span class="badge bg-primary-subtle text-primary border border-primary-subtle">배송중</span>
+                                                        {% elif o.status == 'delivered' %}
+                                                            <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle">배송완료</span>
+                                                        {% elif o.status == 'cancelled' %}
+                                                            <span class="badge bg-danger-subtle text-danger border border-danger-subtle">주문취소</span>
+                                                        {% elif o.status == 'refunded' %}
+                                                            <span class="badge bg-dark-subtle text-dark border border-dark-subtle">환불완료</span>
+                                                        {% else %}
+                                                            <span class="badge bg-light text-dark border">{{ o.status }}</span>
+                                                        {% endif %}
+                                                    </td>
+                                                    <td class="text-center">
+                                                        {% if o.status in ['pending', 'paid'] %}
+                                                            <form action="{{ url_for('main.order_cancel', order_id=o.id) }}" method="POST" onsubmit="return confirm('정말 이 주문을 취소하시겠습니까? 취소 시 즉시 재고가 복구됩니다.');" class="d-inline">
+                                                                <button type="submit" class="btn btn-sm btn-outline-danger py-1 px-2" style="font-size: 0.75rem;">
+                                                                    주문취소
+                                                                </button>
+                                                            </form>
+                                                        {% else %}
+                                                            <span class="text-muted small">-</span>
+                                                        {% endif %}
+                                                    </td>
+                                                </tr>
+                                                {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                {% else %}
+                                    <div class="text-muted text-center py-4">
+                                        <i class="bi bi-box2 display-4 d-block mb-3 text-secondary opacity-50"></i>
+                                        <h6 class="fw-bold text-dark mb-1">아직 주문 내역이 없습니다</h6>
+                                        <p class="small text-muted mb-3">구단 공식 굿즈와 어센틱 유니폼을 구매해 보세요.</p>
+                                        <a href="{{ url_for('main.product_list') }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-bag me-1"></i>상품 둘러보기
+                                        </a>
+                                    </div>
+                                {% endif %}
                             </div>
 
                             <!-- 탭3: 환불 내역 -->
                             <div class="tab-pane fade py-5 text-center" id="refunds-pane" role="tabpanel" aria-labelledby="refunds-tab" tabindex="0">
                                 <div class="text-muted">
                                     <i class="bi bi-receipt display-4 d-block mb-3 text-secondary opacity-50"></i>
-                                    <h6 class="fw-bold text-dark mb-1">아직 환불 내역이 없습니다</h6>
-                                    <p class="small text-muted mb-0">진행 중이거나 완료된 환불/반품 내역이 없습니다.</p>
+                                    <h6 class="fw-bold text-dark mb-1">환불 안내</h6>
+                                    <p class="small text-muted mb-0">주문 취소 및 환불된 주문은 주문 내역에서 '주문취소' 또는 '환불완료' 상태로 확인하실 수 있습니다.</p>
                                 </div>
                             </div>
                         </div>

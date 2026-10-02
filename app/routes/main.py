@@ -3,7 +3,7 @@ import os
 import re
 import sys
 import logging
-from flask import Blueprint, render_template, request, jsonify, abort, session, url_for, redirect, current_app
+from flask import Blueprint, render_template, request, jsonify, abort, session, url_for, redirect, current_app, flash
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from app.models import INITIAL_PRODUCTS, get_vote_candidates, cast_vote
@@ -1380,7 +1380,28 @@ def mypage():
         except Exception as ue:
             logger.debug(f"사용자 인증 제공자 조회 알림: {ue}")
 
-    return render_template('mypage.html', profile=profile_data, is_password_user=is_password_user)
+    # 사용자 본인의 주문 내역 조회
+    user_orders = []
+    if db_client and user_id:
+        try:
+            orders_res = db_client.table('orders').select('*').eq('user_id', user_id).order('created_at', desc=True).execute()
+            user_orders = orders_res.data or []
+            if user_orders:
+                order_ids = [o['id'] for o in user_orders]
+                items_res = db_client.table('order_items').select('*').in_('order_id', order_ids).execute()
+                items_map = {}
+                for it in (items_res.data or []):
+                    oid = it.get('order_id')
+                    if oid not in items_map:
+                        items_map[oid] = []
+                    items_map[oid].append(it)
+                for o in user_orders:
+                    o['items'] = items_map.get(o['id'], [])
+                    o['items_count'] = sum(int(it.get('quantity', 0)) for it in o['items'])
+        except Exception as oe:
+            logger.warning(f"마이페이지 주문 내역 조회 오류: {oe}")
+
+    return render_template('mypage.html', profile=profile_data, is_password_user=is_password_user, orders=user_orders)
 
 
 @main_bp.route('/mypage/change-password', methods=['POST'])
@@ -2083,5 +2104,136 @@ def order_complete(order_id):
 
     except Exception as e:
         logger.error(f"주문 완료 페이지 조회 오류: {e}")
+        return redirect(url_for('main.mypage'))
+
+
+@main_bp.route('/order/<order_id>/cancel', methods=['POST'])
+def order_cancel(order_id):
+    """
+    고객 주문 취소 라우트 (POST /order/<order_id>/cancel):
+    - 로그인한 고객 본인의 주문만 취소 가능
+    - 취소 가능 상태: 'pending'(주문 접수) 또는 'paid'(결제 완료) 상태만 취소 가능 (배송준비/배송중/완료 단계는 관리자 문의)
+    - 취소 처리 시 주문 상품의 product_options 재고를 안전하게 복구
+    - 중복 복구 방지:
+      1) 이미 'cancelled' 또는 'refunded' 상태이거나, [STOCK_RESTORED] 태그가 있으면 중복 복구 차단
+      2) 원자적 상태 변경 및 복구 플래그 갱신
+    """
+    user_info = session.get('user') or {}
+    user_id = user_info.get('id') or session.get('user_id')
+    if not user_id:
+        if request.is_json:
+            return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
+        return redirect(url_for('auth.login', error='login_required') if 'auth.login' in current_app.view_functions else url_for('main.login'))
+
+    admin_client = get_supabase_admin_client()
+    anon_client = get_supabase_client()
+    db_client = admin_client or anon_client
+
+    if not db_client:
+        msg = "데이터베이스 연결에 실패했습니다."
+        if request.is_json:
+            return jsonify({"success": False, "message": msg}), 500
+        flash(msg, 'danger')
+        return redirect(url_for('main.mypage'))
+
+    try:
+        # 본인 주문 확인
+        order_res = db_client.table('orders').select('*').eq('id', order_id).eq('user_id', user_id).execute()
+        if not order_res.data or len(order_res.data) == 0:
+            msg = "해당 주문을 찾을 수 없거나 접근 권한이 없습니다."
+            if request.is_json:
+                return jsonify({"success": False, "message": msg}), 404
+            flash(msg, 'danger')
+            return redirect(url_for('main.mypage'))
+
+        order = order_res.data[0]
+        current_status = order.get('status')
+        shipping_memo = order.get('shipping_memo') or ''
+        is_already_restored = '[STOCK_RESTORED]' in shipping_memo or current_status in ['cancelled', 'refunded']
+
+        # 이미 취소되었거나 환불된 주문인 경우 중복 취소 차단
+        if current_status in ['cancelled', 'refunded']:
+            msg = "이미 취소되었거나 환불 처리된 주문입니다."
+            if request.is_json:
+                return jsonify({"success": False, "message": msg}), 400
+            flash(msg, 'warning')
+            return redirect(url_for('main.mypage'))
+
+        # 취소 가능 상태 검증 (주문접수, 결제완료 단계만 고객 취소 가능)
+        if current_status not in ['pending', 'paid']:
+            msg = f"현재 '{current_status}' 상태의 주문은 직접 취소할 수 없습니다. 고객센터 또는 관리자에게 문의해 주세요."
+            if request.is_json:
+                return jsonify({"success": False, "message": msg}), 400
+            flash(msg, 'danger')
+            return redirect(url_for('main.mypage'))
+
+        # 재고 복구 처리
+        restored_count = 0
+        if not is_already_restored:
+            items_res = db_client.table('order_items').select('id, product_id, option_id, quantity').eq('order_id', order_id).execute()
+            items = items_res.data or []
+
+            for it in items:
+                opt_id = it.get('option_id')
+                qty = int(it.get('quantity', 0))
+                if opt_id and qty > 0:
+                    try:
+                        cur_opt = db_client.table('product_options').select('id, stock, stock_quantity').eq('id', opt_id).execute()
+                        if cur_opt.data:
+                            o_data = cur_opt.data[0]
+                            stk = int(o_data.get('stock') if o_data.get('stock') is not None else o_data.get('stock_quantity', 0))
+                            new_stk = stk + qty
+                            up_payload = {}
+                            if 'stock' in o_data:
+                                up_payload['stock'] = new_stk
+                            if 'stock_quantity' in o_data:
+                                up_payload['stock_quantity'] = new_stk
+
+                            db_client.table('product_options').update(up_payload).eq('id', opt_id).execute()
+                            restored_count += qty
+                    except Exception as re:
+                        logger.error(f"고객 주문 취소 중 재고 복구 실패 (opt_id: {opt_id}): {re}")
+
+            # 주문 상태를 'cancelled'로 변경하고 [STOCK_RESTORED] 태그 기록
+            new_memo = f"[STOCK_RESTORED] {shipping_memo}".strip()
+            db_client.table('orders').update({
+                'status': 'cancelled',
+                'shipping_memo': new_memo
+            }).eq('id', order_id).execute()
+
+            # 취소/환불 내역 기록 (결제된 주문이었던 경우 refunds 테이블에 기록)
+            if current_status == 'paid':
+                try:
+                    db_client.table('refunds').insert({
+                        'order_id': order_id,
+                        'user_id': user_id,
+                        'refund_amount': float(order.get('final_amount', 0)),
+                        'reason': '고객 직접 주문 취소',
+                        'status': 'completed',
+                        'admin_memo': f'결제 후 즉시 취소 완료 및 재고 {restored_count}개 자동 복구'
+                    }).execute()
+                except Exception as rfe:
+                    logger.warning(f"환불 테이블 기록 실패 (무시 가능): {rfe}")
+
+            success_msg = f"주문({order.get('order_number')})이 성공적으로 취소되었으며, 재고가 복구되었습니다."
+            if request.is_json:
+                return jsonify({"success": True, "message": success_msg, "restored_count": restored_count})
+            flash(success_msg, 'success')
+            return redirect(url_for('main.mypage'))
+
+        else:
+            # 이미 복구된 주문 방어
+            msg = "이미 취소 및 재고 복구가 완료된 주문입니다."
+            if request.is_json:
+                return jsonify({"success": False, "message": msg}), 400
+            flash(msg, 'info')
+            return redirect(url_for('main.mypage'))
+
+    except Exception as e:
+        logger.error(f"주문 취소 처리 중 오류: {e}")
+        err_msg = f"주문 취소 처리 중 오류가 발생했습니다: {str(e)}"
+        if request.is_json:
+            return jsonify({"success": False, "message": err_msg}), 500
+        flash(err_msg, 'danger')
         return redirect(url_for('main.mypage'))
 

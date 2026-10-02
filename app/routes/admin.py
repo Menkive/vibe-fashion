@@ -789,8 +789,15 @@ def order_detail(order_id):
 @admin_bp.route('/orders/<order_id>/status', methods=['POST'])
 @admin_required
 def update_order_status(order_id):
-    """주문 상태 업데이트 (주문 접수, 결제 완료, 상품 준비중, 배송중, 배송 완료, 주문 취소, 환불)"""
+    """
+    주문 상태 업데이트 (주문 접수, 결제 완료, 상품 준비중, 배송중, 배송 완료, 주문 취소, 환불)
+    - 취소(cancelled) 또는 환불(refunded) 상태로 변경 시 주문 상품의 옵션 재고를 자동으로 복구합니다.
+    - 중복 복구 방지:
+      1) 주문이 이미 'cancelled' 또는 'refunded' 상태이거나, 배송메모에 [STOCK_RESTORED] 태그가 있으면 재고 복구를 건너뜁니다.
+      2) 원자적 상태 변경 및 복구 플래그를 통해 한 주문에 대해 1회만 정확히 재고를 복구합니다.
+    """
     new_status = request.form.get('status', '').strip()
+    refund_reason = request.form.get('reason', '').strip() or '관리자 직권 상태 변경'
     valid_statuses = list(ORDER_STATUS_MAP.keys())
 
     if new_status not in valid_statuses:
@@ -798,14 +805,94 @@ def update_order_status(order_id):
         return redirect(url_for('admin.order_detail', order_id=order_id))
 
     db = get_db()
-    if db:
-        try:
+    if not db:
+        flash('데이터베이스에 연결할 수 없습니다.', 'danger')
+        return redirect(url_for('admin.order_detail', order_id=order_id))
+
+    try:
+        # 1. 대상 주문의 현재 상태 및 배송 메모 확인
+        order_res = db.table('orders').select('*').eq('id', order_id).execute()
+        if not order_res.data:
+            flash('해당 주문을 찾을 수 없습니다.', 'danger')
+            return redirect(url_for('admin.orders'))
+
+        current_order = order_res.data[0]
+        current_status = current_order.get('status')
+        shipping_memo = current_order.get('shipping_memo') or ''
+        is_already_restored = '[STOCK_RESTORED]' in shipping_memo or current_status in ['cancelled', 'refunded']
+
+        # 동일 상태로의 중복 변경 시 안내
+        if current_status == new_status:
+            flash(f"이미 '{ORDER_STATUS_MAP.get(new_status, {}).get('label', new_status)}' 상태입니다.", 'info')
+            return redirect(url_for('admin.order_detail', order_id=order_id))
+
+        # 2. 취소 또는 환불로의 상태 변경 시 재고 복구 처리
+        restored_count = 0
+        should_restore_stock = (new_status in ['cancelled', 'refunded']) and (not is_already_restored)
+
+        if should_restore_stock:
+            # 주문 항목 조회
+            items_res = db.table('order_items').select('id, product_id, option_id, product_name, quantity').eq('order_id', order_id).execute()
+            items = items_res.data or []
+
+            # 각 품목의 product_options 재고 복원 (+수량)
+            for it in items:
+                opt_id = it.get('option_id')
+                qty = int(it.get('quantity', 0))
+                if opt_id and qty > 0:
+                    try:
+                        cur_opt = db.table('product_options').select('id, stock, stock_quantity').eq('id', opt_id).execute()
+                        if cur_opt.data:
+                            o_data = cur_opt.data[0]
+                            stk = int(o_data.get('stock') if o_data.get('stock') is not None else o_data.get('stock_quantity', 0))
+                            new_stk = stk + qty
+                            up_payload = {}
+                            if 'stock' in o_data:
+                                up_payload['stock'] = new_stk
+                            if 'stock_quantity' in o_data:
+                                up_payload['stock_quantity'] = new_stk
+                            
+                            db.table('product_options').update(up_payload).eq('id', opt_id).execute()
+                            restored_count += qty
+                    except Exception as re:
+                        logger.error(f"재고 복구 실패 (option_id: {opt_id}, qty: {qty}): {re}")
+
+            # 재고 복구 기록을 위해 shipping_memo에 [STOCK_RESTORED] 플래그 추가
+            new_memo = f"[STOCK_RESTORED] {shipping_memo}".strip()
+            db.table('orders').update({
+                'status': new_status,
+                'shipping_memo': new_memo
+            }).eq('id', order_id).execute()
+
+            # 환불(refunded)인 경우 refunds 테이블에도 공식 내역 생성
+            if new_status == 'refunded':
+                try:
+                    db.table('refunds').insert({
+                        'order_id': order_id,
+                        'user_id': current_order.get('user_id'),
+                        'refund_amount': float(current_order.get('final_amount', 0)),
+                        'reason': refund_reason,
+                        'status': 'completed',
+                        'admin_memo': f'관리자 직권 환불 완료 및 재고 {restored_count}개 복구'
+                    }).execute()
+                except Exception as rfe:
+                    logger.warning(f"환불 테이블 기록 실패 (무시 가능): {rfe}")
+
+            label = ORDER_STATUS_MAP.get(new_status, {}).get('label', new_status)
+            flash(f"주문이 '{label}' 처리되었으며, 총 {restored_count}개의 품목 재고가 안전하게 복구되었습니다.", 'success')
+
+        else:
+            # 취소/환불이 아니거나, 이미 취소/환불된 주문의 상태만 재조정하는 경우 (중복 재고 복구 방지)
             db.table('orders').update({'status': new_status}).eq('id', order_id).execute()
             label = ORDER_STATUS_MAP.get(new_status, {}).get('label', new_status)
-            flash(f"주문 상태가 '{label}'(으)로 변경되었습니다.", 'success')
-        except Exception as e:
-            logger.error(f"주문 상태 변경 오류: {e}")
-            flash(f"상태 변경 실패: {e}", 'danger')
+            if is_already_restored and new_status in ['cancelled', 'refunded']:
+                flash(f"주문 상태가 '{label}'(으)로 변경되었습니다. (이미 재고가 복구된 주문으로 중복 복구는 차단되었습니다)", 'info')
+            else:
+                flash(f"주문 상태가 '{label}'(으)로 변경되었습니다.", 'success')
+
+    except Exception as e:
+        logger.error(f"주문 상태 변경 오류: {e}")
+        flash(f"상태 변경 실패: {e}", 'danger')
 
     return redirect(url_for('admin.order_detail', order_id=order_id))
 
