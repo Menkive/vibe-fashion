@@ -60,7 +60,7 @@
     <!-- 상단 네비게이션 바 -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark sticky-top shadow-sm">
         <div class="container">
-            <a class="navbar-brand d-inline-flex align-items-center" href="{{ url_for('main.club') }}" title="양산시민축구단 소개">
+            <a class="navbar-brand d-inline-flex align-items-center" href="{{ url_for('main.index') }}" title="양산시민축구단 공식 온라인 스토어 메인">
                 <img src="{{ url_for('static', filename='images/yangsan-fc-symbol.png') }}"
                      alt="양산시민축구단 심볼 로고"
                      class="brand-symbol-logo me-2"
@@ -86,13 +86,16 @@
                         <a class="nav-link" href="{{ url_for('main.product_list', cat='캐주얼') }}">캐주얼</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.product_list', cat='패션/잡화') }}">패션/잡화</a>
-                    </li>
-                    <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('main.product_list', cat='응원용품') }}">응원용품</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="{{ url_for('main.product_list', cat='생활용품') }}">생활용품</a>
+                        <a class="nav-link" href="{{ url_for('main.product_list', cat='액세서리') }}">액세서리</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.product_list', cat='기념품') }}">기념품</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('main.club') }}">구단소개</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link text-warning fw-bold" href="{{ url_for('main.vote_page') }}">
