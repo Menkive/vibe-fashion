@@ -76,6 +76,84 @@
     </div>
 </section>
 
+<!-- ==========================================
+     [추천 상품] (홈 유니폼, 원정 유니폼, 머플러, 응원타월)
+     ========================================== -->
+<section class="py-16 bg-white relative" id="recommended-products">
+    <div class="container mx-auto px-4">
+        <!-- 섹션 타이틀 -->
+        <div class="flex flex-col md:flex-row md:items-end justify-between mb-10 pb-4 border-b border-slate-200">
+            <div>
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-700 text-xs font-bold tracking-wider uppercase mb-2">
+                    <i class="bi bi-star-fill text-amber-500"></i> Editor's Pick
+                </div>
+                <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+                    추천 상품
+                </h2>
+                <p class="text-slate-500 text-sm md:text-base mt-1">
+                    경기장 응원 필수 아이템! 양산FC 서포터즈가 가장 사랑하는 4가지 머스트헤브 컬렉션
+                </p>
+            </div>
+            <a href="{{ url_for('main.product_list') }}" class="mt-4 md:mt-0 inline-flex items-center gap-1 text-sm font-bold text-brandNavy hover:text-amber-600 transition-colors text-decoration-none">
+                전체 스토어 상품 보기 <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+
+        <!-- 4대 추천 상품 카드 그리드 (모바일 1열, 태블릿 2열, PC 4열) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {% for item in recommended_products %}
+            <div class="group bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl hover:border-amber-400 transition-all duration-300 flex flex-col">
+                <!-- 상품 이미지 영역 -->
+                <a href="{{ url_for('main.product_detail', product_id=item.id) }}" class="block relative bg-slate-900/95 aspect-square overflow-hidden p-6 text-center text-decoration-none">
+                    <img src="{{ item.thumbnail_url or item.image_url }}"
+                         alt="{{ item.name }}"
+                         class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                         loading="lazy">
+
+                    <!-- 뱃지 라벨 -->
+                    <span class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-amber-400 text-slate-950 font-black text-[11px] uppercase tracking-wider shadow">
+                        {{ item.badge or 'MD PICK' }}
+                    </span>
+                    <span class="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-slate-800/90 text-white text-[10px] font-semibold border border-slate-700">
+                        {{ item.category }}
+                    </span>
+                </a>
+
+                <!-- 상품 정보 영역 -->
+                <div class="p-5 flex flex-col flex-grow">
+                    <div class="text-xs font-semibold text-slate-400 mb-1">OFFICIAL GOODS</div>
+                    <h3 class="text-base font-bold text-slate-900 group-hover:text-brandNavy transition-colors mb-2 line-clamp-1">
+                        <a href="{{ url_for('main.product_detail', product_id=item.id) }}" class="text-decoration-none text-reset">
+                            {{ item.name }}
+                        </a>
+                    </h3>
+                    <p class="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-4 flex-grow">
+                        {{ item.description }}
+                    </p>
+
+                    <!-- 가격 & 버튼 -->
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <div>
+                            {% if item.original_price %}
+                            <div class="text-[11px] text-slate-400 line-through">
+                                {{ item.original_price|currency }}
+                            </div>
+                            {% endif %}
+                            <div class="text-lg font-black text-slate-900">
+                                {{ item.price|currency }}
+                            </div>
+                        </div>
+                        <a href="{{ url_for('main.product_detail', product_id=item.id) }}" class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-brandNavy hover:bg-amber-500 text-white hover:text-slate-950 transition-colors shadow-sm text-decoration-none" title="상세보기">
+                            <i class="bi bi-cart-plus text-base"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
 <!-- 2. 인기 상품 섹션 -->
 <section id="products" class="container py-5">
     <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-end mb-4">
@@ -201,84 +279,6 @@
     </div>
     {% endif %}
 
-</section>
-
-<!-- ==========================================
-     [추천 상품] (홈 유니폼, 원정 유니폼, 머플러, 응원타월)
-     ========================================== -->
-<section class="py-16 bg-white relative" id="recommended-products">
-    <div class="container mx-auto px-4">
-        <!-- 섹션 타이틀 -->
-        <div class="flex flex-col md:flex-row md:items-end justify-between mb-10 pb-4 border-b border-slate-200">
-            <div>
-                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-700 text-xs font-bold tracking-wider uppercase mb-2">
-                    <i class="bi bi-star-fill text-amber-500"></i> Editor's Pick
-                </div>
-                <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
-                    추천 상품
-                </h2>
-                <p class="text-slate-500 text-sm md:text-base mt-1">
-                    경기장 응원 필수 아이템! 양산FC 서포터즈가 가장 사랑하는 4가지 머스트헤브 컬렉션
-                </p>
-            </div>
-            <a href="{{ url_for('main.product_list') }}" class="mt-4 md:mt-0 inline-flex items-center gap-1 text-sm font-bold text-brandNavy hover:text-amber-600 transition-colors text-decoration-none">
-                전체 스토어 상품 보기 <i class="bi bi-arrow-right"></i>
-            </a>
-        </div>
-
-        <!-- 4대 추천 상품 카드 그리드 (모바일 1열, 태블릿 2열, PC 4열) -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {% for item in recommended_products %}
-            <div class="group bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl hover:border-amber-400 transition-all duration-300 flex flex-col">
-                <!-- 상품 이미지 영역 -->
-                <a href="{{ url_for('main.product_detail', product_id=item.id) }}" class="block relative bg-slate-900/95 aspect-square overflow-hidden p-6 text-center text-decoration-none">
-                    <img src="{{ item.thumbnail_url or item.image_url }}"
-                         alt="{{ item.name }}"
-                         class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
-                         loading="lazy">
-                    
-                    <!-- 뱃지 라벨 -->
-                    <span class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-amber-400 text-slate-950 font-black text-[11px] uppercase tracking-wider shadow">
-                        {{ item.badge or 'MD PICK' }}
-                    </span>
-                    <span class="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-slate-800/90 text-white text-[10px] font-semibold border border-slate-700">
-                        {{ item.category }}
-                    </span>
-                </a>
-
-                <!-- 상품 정보 영역 -->
-                <div class="p-5 flex flex-col flex-grow">
-                    <div class="text-xs font-semibold text-slate-400 mb-1">OFFICIAL GOODS</div>
-                    <h3 class="text-base font-bold text-slate-900 group-hover:text-brandNavy transition-colors mb-2 line-clamp-1">
-                        <a href="{{ url_for('main.product_detail', product_id=item.id) }}" class="text-decoration-none text-reset">
-                            {{ item.name }}
-                        </a>
-                    </h3>
-                    <p class="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-4 flex-grow">
-                        {{ item.description }}
-                    </p>
-
-                    <!-- 가격 & 버튼 -->
-                    <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
-                        <div>
-                            {% if item.original_price %}
-                            <div class="text-[11px] text-slate-400 line-through">
-                                {{ item.original_price|currency }}
-                            </div>
-                            {% endif %}
-                            <div class="text-lg font-black text-slate-900">
-                                {{ item.price|currency }}
-                            </div>
-                        </div>
-                        <a href="{{ url_for('main.product_detail', product_id=item.id) }}" class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-brandNavy hover:bg-amber-500 text-white hover:text-slate-950 transition-colors shadow-sm text-decoration-none" title="상세보기">
-                            <i class="bi bi-cart-plus text-base"></i>
-                        </a>
-                    </div>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
 </section>
 
 <!-- ==========================================

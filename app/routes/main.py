@@ -1,12 +1,23 @@
 # app/routes/main.py - 양산시민축구단 공식 온라인 스토어 라우트
 import os
 import re
+import json
+import hashlib
 import sys
 import logging
 from flask import Blueprint, render_template, request, jsonify, abort, session, url_for, redirect, current_app, flash
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from app.models import INITIAL_PRODUCTS, get_vote_candidates, cast_vote
+from app.services.uniform_options import (
+    build_uniform_custom_options,
+    customization_identity,
+    customization_input_from_snapshot,
+    format_custom_options,
+    get_uniform_option_data,
+    is_customizable_product,
+    parse_custom_options,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -50,6 +61,46 @@ def get_supabase_admin_client() -> Client | None:
     except Exception as e:
         print(f"[Supabase Admin Client Error] 관리자 클라이언트 생성 실패: {e}", file=sys.stderr)
         return None
+
+
+def get_profile_role(user_id: str) -> str:
+    """관리자 권한은 사용자 메타데이터가 아닌 profiles 테이블에서만 읽는다."""
+    admin_client = get_supabase_admin_client()
+    if not admin_client:
+        return 'customer'
+    try:
+        result = admin_client.table('profiles').select('role').eq('id', user_id).execute()
+        role = result.data[0].get('role') if result.data else None
+        return role if role in {'customer', 'admin', 'seller'} else 'customer'
+    except Exception as exc:
+        logger.warning('프로필 role 조회 실패: %s', exc)
+        return 'customer'
+
+
+def establish_user_session(user_id, email, name, phone='', role='customer', provider='email', avatar_url=None, remember=False):
+    """인증 완료 후 이전 세션을 폐기하고 일관된 사용자 세션을 발급한다."""
+    session.clear()
+    session.permanent = bool(remember)
+    session['user_id'] = str(user_id)
+    session['email'] = email or ''
+    session['user'] = {
+        'id': str(user_id),
+        'email': email or '',
+        'name': name or '',
+        'phone': phone or '',
+        'role': role if role in {'customer', 'admin', 'seller'} else 'customer',
+        'provider': provider,
+    }
+    if avatar_url:
+        session['user']['avatar_url'] = avatar_url
+
+
+def is_email_confirmed(user) -> bool:
+    """Supabase 사용자 이메일 인증 완료 여부를 확인한다."""
+    return bool(
+        getattr(user, 'email_confirmed_at', None)
+        or getattr(user, 'confirmed_at', None)
+    )
 
 
 def fetch_all_products():
@@ -419,6 +470,7 @@ def product_detail(product_id):
                     "name": p_item.get('name'),
                     "slug": p_item.get('slug'),
                     "category": category_name,
+                    "product_type": p_item.get('product_type', 'standard'),
                     "price": price,
                     "original_price": orig_price,
                     "description": p_item.get('description', ''),
@@ -456,11 +508,16 @@ def product_detail(product_id):
 
     all_products = fetch_all_products()
     related_products = [p for p in all_products if str(p["id"]) != str(product_id)][:4]
+    uniform_option_data = {'options': {'patch': [], 'marking': [], 'embroidery': []}, 'players': []}
+    if db_client and is_customizable_product(product):
+        uniform_option_data = get_uniform_option_data(db_client)
 
     return render_template(
         'product_detail.html',
         product=product,
         colors=colors,
+        uniform_options=uniform_option_data['options'],
+        players=uniform_option_data['players'],
         related_products=related_products
     )
 
@@ -488,7 +545,7 @@ def api_product_sizes(product_id):
         try:
             # product_options에서 product_id + color로 필터링
             res = db_client.table('product_options') \
-                .select('id, size, stock, stock_quantity') \
+                .select('id, size, stock, stock_quantity, additional_price') \
                 .eq('product_id', product_id) \
                 .eq('color', color) \
                 .execute()
@@ -507,12 +564,13 @@ def api_product_sizes(product_id):
                     sizes_list.append({
                         "size": row.get('size'),
                         "stock": stock_num,
+                        "additional_price": int(float(row.get('additional_price') or 0)),
                         "id": str(row.get('id'))
                     })
 
                 # 사이즈 순서 정렬 (XS, S, M, L, XL, XXL 등 표준 순서)
                 size_order = {"XS": 1, "S": 2, "M": 3, "L": 4, "XL": 5, "XXL": 6, "2XL": 6, "3XL": 7, "Free": 8}
-                sizes_list.sort(key=lambda x: size_order.get(x['size'], 99))
+                sizes_list.sort(key=lambda x: size_order.get(str(x['size']).upper(), 50 + int(x['size']) if str(x['size']).isdigit() else 99))
         except Exception as e:
             logger.error(f"사이즈 옵션 API 조회 오류: {e}")
 
@@ -553,7 +611,7 @@ def cart():
     try:
         # 2. 사용자의 장바구니 항목 조회 (JOIN: carts → products, product_options)
         cart_response = db_client.table('carts') \
-            .select('id, product_id, option_id, quantity, created_at, updated_at') \
+            .select('id, product_id, option_id, quantity, custom_options, created_at, updated_at') \
             .eq('user_id', user_id) \
             .order('updated_at', desc=True) \
             .execute()
@@ -570,7 +628,7 @@ def cart():
 
                 # 상품 정보 조회 (image_url은 product_images 테이블에서 따로 조회)
                 prod_response = db_client.table('products') \
-                    .select('id, name, price') \
+                    .select('id, name, price, product_type') \
                     .eq('id', product_id) \
                     .execute()
 
@@ -603,7 +661,7 @@ def cart():
                 
                 # 상품 옵션 정보 조회 (색상, 사이즈, 재고)
                 opt_response = db_client.table('product_options') \
-                    .select('id, color, size, stock_quantity') \
+                    .select('id, color, size, stock, stock_quantity, additional_price') \
                     .eq('id', option_id) \
                     .execute()
 
@@ -612,15 +670,35 @@ def cart():
 
                 option = opt_response.data[0]
 
-                # 재고 계산 (stock_quantity 사용)
+                # 재고 계산 (stock 컬럼 우선, 레거시는 stock_quantity 사용)
                 try:
-                    available_stock = int(option.get('stock_quantity', 0))
+                    available_stock = int(option.get('stock') if option.get('stock') is not None else option.get('stock_quantity', 0))
                 except (ValueError, TypeError):
                     available_stock = 0
 
-                # 가격 계산
+                custom_options = parse_custom_options(cart_item.get('custom_options')) or {}
+
+                product_type = prod_response.data[0].get('product_type', 'standard')
+                if product_type in {'jersey', 'kids_jersey'}:
+                    verified_options, option_error = build_uniform_custom_options(
+                        db_client,
+                        prod_response.data[0],
+                        customization_input_from_snapshot(custom_options),
+                    )
+                    if verified_options:
+                        custom_options = verified_options
+                    elif option_error:
+                        logger.warning('장바구니 커스텀 옵션 재검증 실패: %s', option_error)
+                else:
+                    custom_options = {}
+
+                # 상품/사이즈/커스터마이징 추가금액은 서버 데이터로 합산
                 try:
-                    price = int(float(product.get('price', 0)))
+                    price = (
+                        int(float(product.get('price', 0)))
+                        + int(float(option.get('additional_price', 0)))
+                        + int((custom_options or {}).get('total_additional_price', 0))
+                    )
                 except (ValueError, TypeError):
                     price = 0
 
@@ -637,6 +715,8 @@ def cart():
                     'product_name': product.get('name', '상품'),
                     'color': option.get('color', 'N/A'),
                     'size': option.get('size', 'N/A'),
+                    'custom_options': custom_options,
+                    'custom_options_label': format_custom_options(custom_options),
                     'quantity': quantity,
                     'price': price,
                     'subtotal': subtotal,
@@ -699,6 +779,9 @@ def cart_add():
     data = request.get_json(silent=True) or request.form
     product_option_id = data.get('product_option_id')
     raw_quantity = data.get('quantity', 1)
+    submitted_custom_options = parse_custom_options(data.get('custom_options') or {})
+    if submitted_custom_options is None:
+        return jsonify({"success": False, "message": "유니폼 옵션 형식이 올바르지 않습니다."}), 400
 
     if not product_option_id:
         return jsonify({"success": False, "message": "상품 옵션(사이즈/색상)을 선택해 주세요."}), 400
@@ -720,7 +803,7 @@ def cart_add():
     try:
         # 3. 재고 검증: product_options 테이블에서 옵션 및 상품 정보 조회
         opt_res = db_client.table('product_options') \
-            .select('id, product_id, size, color, stock, stock_quantity') \
+            .select('id, product_id, size, color, stock, stock_quantity, additional_price') \
             .eq('id', product_option_id) \
             .execute()
 
@@ -729,6 +812,20 @@ def cart_add():
 
         option_row = opt_res.data[0]
         product_id = option_row.get('product_id')
+
+        product_res = db_client.table('products').select('id, name, price, product_type').eq('id', product_id).execute()
+        if not product_res.data:
+            return jsonify({"success": False, "message": "상품을 찾을 수 없습니다."}), 404
+        product_row = product_res.data[0]
+        custom_options, customization_error = build_uniform_custom_options(
+            db_client, product_row, submitted_custom_options
+        )
+        if customization_error:
+            return jsonify({"success": False, "message": customization_error}), 400
+
+        identity = customization_identity(custom_options)
+        custom_options_json = json.dumps(identity, sort_keys=True, ensure_ascii=False, separators=(',', ':'))
+        custom_options_key = hashlib.sha256(custom_options_json.encode('utf-8')).hexdigest() if custom_options else ''
 
         # stock 컬럼 우선, 없으면 stock_quantity 사용
         stock_val = option_row.get('stock')
@@ -746,11 +843,13 @@ def cart_add():
                 "message": f"재고가 부족합니다. (현재 {available_stock}개)"
             }), 400
 
-        # 4. carts 테이블에서 동일 사용자 + 동일 option_id 항목 조회
+        # 4. 모든 옵션값이 같은 장바구니 항목만 조회하여 수량을 합친다.
         cart_item_res = db_client.table('carts') \
             .select('id, quantity') \
             .eq('user_id', user_id) \
+            .eq('product_id', product_id) \
             .eq('option_id', product_option_id) \
+            .eq('custom_options_key', custom_options_key) \
             .execute()
 
         existing_cart = cart_item_res.data[0] if cart_item_res.data else None
@@ -783,7 +882,9 @@ def cart_add():
                 "user_id": user_id,
                 "product_id": product_id,
                 "option_id": product_option_id,
-                "quantity": quantity
+                "quantity": quantity,
+                "custom_options": custom_options or {},
+                "custom_options_key": custom_options_key,
             }
             insert_res = db_client.table('carts') \
                 .insert(insert_data) \
@@ -800,7 +901,12 @@ def cart_add():
                 "cart_id": cart_id,
                 "product_id": product_id,
                 "product_option_id": product_option_id,
-                "quantity": final_qty
+                "quantity": final_qty,
+                "unit_price": int(float(product_row.get('price', 0)))
+                    + int(float(option_row.get('additional_price', 0)))
+                    + int((custom_options or {}).get('total_additional_price', 0)),
+                "custom_options": custom_options or {},
+                "custom_options_label": format_custom_options(custom_options),
             }
         })
 
@@ -856,7 +962,7 @@ def cart_update(cart_id):
     try:
         # 4. cart_id가 해당 사용자의 것인지 검증
         cart_res = db_client.table('carts') \
-            .select('id, user_id, product_id, option_id, quantity') \
+            .select('id, user_id, product_id, option_id, quantity, custom_options') \
             .eq('id', cart_id) \
             .execute()
 
@@ -875,7 +981,7 @@ def cart_update(cart_id):
 
         # 5. 상품 옵션의 재고 확인
         opt_res = db_client.table('product_options') \
-            .select('id, stock_quantity') \
+            .select('id, stock, stock_quantity, additional_price') \
             .eq('id', option_id) \
             .execute()
 
@@ -911,7 +1017,7 @@ def cart_update(cart_id):
 
         # 8. 상품 가격 조회하여 subtotal 계산
         prod_res = db_client.table('products') \
-            .select('id, name, price') \
+            .select('id, name, price, product_type') \
             .eq('id', product_id) \
             .execute()
 
@@ -919,8 +1025,21 @@ def cart_update(cart_id):
             return jsonify({"success": False, "message": "상품을 찾을 수 없습니다."}), 404
 
         product = prod_res.data[0]
+        stored_custom_options = parse_custom_options(cart_item.get('custom_options')) or {}
+        verified_custom_options, custom_error = build_uniform_custom_options(
+            db_client,
+            product,
+            customization_input_from_snapshot(stored_custom_options),
+        )
+        if custom_error:
+            return jsonify({"success": False, "message": custom_error}), 400
+
         try:
-            price = int(float(product.get('price', 0)))
+            price = (
+                int(float(product.get('price', 0)))
+                + int(float(option_row.get('additional_price', 0)))
+                + int((verified_custom_options or {}).get('total_additional_price', 0))
+            )
         except (ValueError, TypeError):
             price = 0
 
@@ -936,7 +1055,9 @@ def cart_update(cart_id):
                 "product_name": product.get('name'),
                 "price": price,
                 "quantity": quantity,
-                "subtotal": subtotal
+                "subtotal": subtotal,
+                "custom_options": verified_custom_options or {},
+                "custom_options_label": format_custom_options(verified_custom_options),
             }
         }), 200
 
@@ -1156,8 +1277,10 @@ def signup():
             "options": {
                 "data": {
                     "full_name": name,
-                    "phone": phone
-                }
+                    "phone": phone,
+                    "terms_agreed": True
+                },
+                "email_redirect_to": url_for('auth.confirm', _external=True)
             }
         })
 
@@ -1180,21 +1303,21 @@ def signup():
         except Exception as pe:
             logger.warning(f"profiles 동기화 예외 (무시 가능): {pe}")
 
-        # 세션 정보 저장 (로그인 처리)
-        session['user_id'] = str(user.id)
-        session['email'] = user.email
-        session['user'] = {
-            "id": str(user.id),
-            "email": user.email,
-            "name": name,
-            "phone": phone
-        }
-        if auth_res.session:
-            session['access_token'] = auth_res.session.access_token
+        if auth_res.session and is_email_confirmed(user):
+            establish_user_session(
+                user.id, user.email, name, phone,
+                role=get_profile_role(str(user.id)),
+            )
+            return jsonify({
+                "success": True,
+                "message": f"{name}님, 양산시민축구단 공식 스토어 회원이 되신 것을 환영합니다!",
+                "redirect_url": url_for('main.index')
+            })
 
         return jsonify({
             "success": True,
-            "message": f"{name}님, 양산시민축구단 공식 스토어 회원이 되신 것을 환영합니다!"
+            "message": "회원가입이 접수되었습니다. 이메일 인증 링크를 확인해 주세요.",
+            "redirect_url": url_for('auth.signup_complete', email=email)
         })
 
     except Exception as e:
@@ -1239,24 +1362,29 @@ def login():
         if not user:
             return jsonify({"success": False, "message": "이메일 또는 비밀번호가 일치하지 않습니다."}), 400
 
+        if not is_email_confirmed(user):
+            return jsonify({
+                "success": False,
+                "message": "이메일 인증이 완료되지 않았습니다. 받은 메일의 인증 링크를 확인해 주세요."
+            }), 403
+
         user_metadata = user.user_metadata or {}
         user_name = user_metadata.get('full_name') or user_metadata.get('name') or email.split('@')[0]
-
-        session['user'] = {
-            "id": str(user.id),
-            "email": user.email,
-            "name": user_name,
-            "phone": user_metadata.get('phone', '')
-        }
-        if auth_res.session:
-            session['access_token'] = auth_res.session.access_token
-
-        if remember:
-            session.permanent = True
+        role = get_profile_role(str(user.id))
+        remember_session = str(remember).lower() in {'true', 'on', '1', 'yes'}
+        establish_user_session(
+            user.id,
+            user.email,
+            user_name,
+            user_metadata.get('phone', ''),
+            role=role,
+            remember=remember_session,
+        )
 
         return jsonify({
             "success": True,
-            "message": f"{user_name}님, 환영합니다!"
+            "message": f"{user_name}님, 환영합니다!",
+            "redirect_url": url_for('main.index')
         })
 
     except Exception as e:
@@ -1267,7 +1395,7 @@ def login():
         return jsonify({"success": False, "message": "로그인에 실패했습니다. 입력 정보를 확인해 주세요."}), 400
 
 
-@main_bp.route('/logout', methods=['GET', 'POST'])
+@main_bp.route('/logout', methods=['POST'])
 def logout():
     """로그아웃 처리 (Supabase signOut 및 세션 삭제)"""
     try:
@@ -1644,7 +1772,7 @@ def order_checkout():
     # 2. 장바구니 조회 및 재고(stock=0) 확인
     try:
         cart_response = db_client.table('carts') \
-            .select('id, product_id, option_id, quantity') \
+            .select('id, product_id, option_id, quantity, custom_options') \
             .eq('user_id', user_id) \
             .execute()
 
@@ -1670,7 +1798,7 @@ def order_checkout():
             quantity = cart_item['quantity']
 
             # 상품 정보
-            prod_res = db_client.table('products').select('id, name, price').eq('id', product_id).execute()
+            prod_res = db_client.table('products').select('id, name, price, product_type').eq('id', product_id).execute()
             if not prod_res.data:
                 continue
             product = prod_res.data[0]
@@ -1682,7 +1810,7 @@ def order_checkout():
                 image_url = img_res.data[0].get('image_url')
 
             # 옵션 정보 및 재고(stock_quantity) 조회
-            opt_res = db_client.table('product_options').select('id, color, size, stock_quantity').eq('id', option_id).execute()
+            opt_res = db_client.table('product_options').select('id, color, size, stock, stock_quantity, additional_price').eq('id', option_id).execute()
             color = '기본'
             size = 'Free'
             available_stock = 0
@@ -1692,7 +1820,7 @@ def order_checkout():
                 color = option.get('color') or '기본'
                 size = option.get('size') or 'Free'
                 try:
-                    available_stock = int(option.get('stock_quantity', 0))
+                    available_stock = int(option.get('stock') if option.get('stock') is not None else option.get('stock_quantity', 0))
                 except (ValueError, TypeError):
                     available_stock = 0
 
@@ -1700,8 +1828,21 @@ def order_checkout():
             if available_stock <= 0:
                 has_sold_out = True
 
+            stored_custom_options = parse_custom_options(cart_item.get('custom_options')) or {}
+            custom_options, custom_error = build_uniform_custom_options(
+                db_client,
+                product,
+                customization_input_from_snapshot(stored_custom_options),
+            )
+            if custom_error:
+                return redirect(url_for('main.cart', error='invalid_custom_options', msg=custom_error))
+
             try:
-                price = int(float(product.get('price', 0)))
+                price = (
+                    int(float(product.get('price', 0)))
+                    + int(float(option.get('additional_price', 0)))
+                    + int((custom_options or {}).get('total_additional_price', 0))
+                )
             except (ValueError, TypeError):
                 price = 0
 
@@ -1714,6 +1855,8 @@ def order_checkout():
                 'product_name': product.get('name', '양산FC 상품'),
                 'color': color,
                 'size': size,
+                'custom_options': custom_options or {},
+                'custom_options_label': format_custom_options(custom_options),
                 'quantity': quantity,
                 'price': price,
                 'subtotal': subtotal,
@@ -1817,7 +1960,7 @@ def order_create():
     # 1. 장바구니 조회 및 재고 확인
     try:
         cart_response = db_client.table('carts') \
-            .select('id, product_id, option_id, quantity') \
+            .select('id, product_id, option_id, quantity, custom_options') \
             .eq('user_id', user_id) \
             .execute()
 
@@ -1836,7 +1979,7 @@ def order_create():
             quantity = int(cart_item['quantity'])
 
             # 상품 정보 조회
-            prod_res = db_client.table('products').select('id, name, price').eq('id', product_id).execute()
+            prod_res = db_client.table('products').select('id, name, price, product_type').eq('id', product_id).execute()
             if not prod_res.data:
                 continue
             product = prod_res.data[0]
@@ -1855,7 +1998,21 @@ def order_create():
                 msg = f"'{product.get('name')}' 상품의 재고가 부족하거나 품절되었습니다."
                 return jsonify({"success": False, "message": msg, "redirect_url": url_for('main.cart', error='sold_out', msg=msg)}), 400
 
-            price = int(float(product.get('price', 0))) + int(float(option.get('additional_price', 0)))
+            stored_custom_options = parse_custom_options(cart_item.get('custom_options')) or {}
+            custom_options, custom_error = build_uniform_custom_options(
+                db_client,
+                product,
+                customization_input_from_snapshot(stored_custom_options),
+            )
+            if custom_error:
+                msg = custom_error
+                return jsonify({"success": False, "message": msg, "redirect_url": url_for('main.cart', error='invalid_custom_options', msg=msg)}), 400
+
+            price = (
+                int(float(product.get('price', 0)))
+                + int(float(option.get('additional_price', 0)))
+                + int((custom_options or {}).get('total_additional_price', 0))
+            )
             subtotal = price * quantity
 
             cart_items.append({
@@ -1865,6 +2022,8 @@ def order_create():
                 'product_name': product.get('name', '양산FC 상품'),
                 'color': option.get('color') or '기본',
                 'size': option.get('size') or 'Free',
+                'custom_options': custom_options or {},
+                'custom_options_label': format_custom_options(custom_options),
                 'quantity': quantity,
                 'unit_price': price,
                 'subtotal': subtotal,
@@ -1945,6 +2104,8 @@ def order_create():
         items_payload = []
         for item in cart_items:
             opt_snapshot = f"{item['color']} / {item['size']}" if item['color'] != '기본' else item['size']
+            if item.get('custom_options_label'):
+                opt_snapshot = f"{opt_snapshot} / {item['custom_options_label']}"
             items_payload.append({
                 "order_id": created_order_id,
                 "product_id": item['product_id'],
@@ -1953,7 +2114,8 @@ def order_create():
                 "option_info": opt_snapshot,
                 "unit_price": float(item['unit_price']),
                 "quantity": int(item['quantity']),
-                "subtotal": float(item['subtotal'])
+                "subtotal": float(item['subtotal']),
+                "custom_options": item.get('custom_options') or {}
             })
 
         order_items_res = db_client.table('order_items').insert(items_payload).execute()

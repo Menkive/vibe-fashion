@@ -1,7 +1,9 @@
 # app/__init__.py - VIBE-FASHION 앱 팩토리 파일
-from flask import Flask
+from flask import Flask, jsonify, request, session
 from dotenv import load_dotenv
 import os
+import secrets
+import hmac
 
 def create_app():
     """
@@ -14,8 +16,27 @@ def create_app():
     # Flask 앱 객체 생성
     app = Flask(__name__)
 
-    # 기본 비밀 키 설정 (세션 및 보안에 사용)
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'default-vibe-fashion-secret-key')
+    # 운영 환경은 고정 비밀 키가 반드시 환경변수로 제공되어야 한다.
+    secret_key = os.getenv('SECRET_KEY')
+    is_production = (
+        os.getenv('APP_ENV', '').lower() == 'production'
+        or os.getenv('FLASK_ENV', '').lower() == 'production'
+        or bool(os.getenv('WEBSITE_INSTANCE_ID'))
+    )
+    if not secret_key and is_production:
+        raise RuntimeError('운영 환경에서는 SECRET_KEY 환경변수가 필요합니다.')
+    app.config['SECRET_KEY'] = secret_key or secrets.token_hex(32)
+
+    secure_cookie_setting = os.getenv('SESSION_COOKIE_SECURE')
+    app.config.update(
+        SESSION_COOKIE_HTTPONLY=True,
+        SESSION_COOKIE_SAMESITE='Lax',
+        SESSION_COOKIE_SECURE=(
+            secure_cookie_setting.strip().lower() in {'1', 'true', 'yes', 'on'}
+            if secure_cookie_setting is not None
+            else is_production
+        ),
+    )
 
     # Jinja2 템플릿 필터 등록: 가격 포맷팅 시 ValueError 방지
     @app.template_filter('currency')
@@ -57,6 +78,38 @@ def create_app():
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
     app.register_blueprint(admin_bp)
+
+    @app.context_processor
+    def inject_csrf_token():
+        def generate_csrf_token():
+            token = session.get('_csrf_token')
+            if not token:
+                token = secrets.token_urlsafe(32)
+                session['_csrf_token'] = token
+            return token
+
+        return {'csrf_token': generate_csrf_token}
+
+    csrf_protected_endpoints = {
+        'main.login', 'main.signup', 'main.logout',
+        'auth.login', 'auth.signup', 'auth.resend_confirmation',
+        'auth.complete_social_signup', 'auth.forgot_password', 'auth.reset_password',
+    }
+
+    @app.before_request
+    def protect_auth_posts():
+        if request.method not in {'POST', 'PUT', 'PATCH', 'DELETE'}:
+            return None
+        if request.endpoint not in csrf_protected_endpoints:
+            return None
+
+        submitted_token = request.headers.get('X-CSRF-Token') or request.form.get('csrf_token')
+        session_token = session.get('_csrf_token')
+        if not submitted_token or not session_token or not hmac.compare_digest(submitted_token, session_token):
+            if request.is_json:
+                return jsonify({'success': False, 'message': '요청 보안 토큰이 만료되었습니다. 페이지를 새로고침해 주세요.'}), 400
+            return '요청 보안 토큰이 올바르지 않습니다. 페이지를 새로고침해 주세요.', 400
+        return None
 
     # 전역 요청 가드: 약관 동의를 완료하지 않은 소셜 로그인 회원은 /auth/social-signup 외 다른 페이지 접근 제한
     from flask import request as flask_req, redirect, url_for, session as flask_sess

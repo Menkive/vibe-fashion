@@ -26,6 +26,10 @@
                             <i class="bi bi-exclamation-circle-fill me-1"></i>
                             {% if error == 'kakao_cancelled' or error == 'naver_cancelled' or error == 'oauth_cancelled' %}
                                 로그인이 취소되었습니다.
+                            {% elif error == 'email_not_confirmed' %}
+                                이메일 인증이 완료되지 않았습니다. 받은 메일의 인증 링크를 확인해주세요.
+                            {% elif error == 'kakao_state_invalid' %}
+                                카카오 로그인 요청이 만료되었거나 확인되지 않았습니다. 다시 시도해 주세요.
                             {% elif error == 'kakao_failed' %}
                                 카카오 로그인을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.
                             {% elif error == 'kakao_not_configured' %}
@@ -184,7 +188,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch("{{ url_for('main.login') }}", {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': "{{ csrf_token() }}"
+                },
                 body: JSON.stringify({ email, password, remember })
             });
             const data = await res.json();
@@ -192,7 +199,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 showAlert(data.message || '로그인 성공! 잠시 후 이동합니다.', 'success');
                 setTimeout(() => {
-                    window.location.href = "{{ url_for('main.index') }}";
+                    window.location.href = data.redirect_url || "{{ url_for('main.index') }}";
                 }, 700);
             } else {
                 showAlert(data.message || '로그인에 실패했습니다.', 'danger');

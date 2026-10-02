@@ -5,81 +5,199 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
-        <h3 class="fw-bold mb-1">매출 및 주문 정산 현황</h3>
-        <p class="text-secondary small mb-0">양산시민축구단 공식 팀스토어의 일자별 매출 및 실시간 결제 현황을 파악합니다.</p>
+        <h3 class="fw-bold mb-1">매출 관리</h3>
+        <p class="text-secondary small mb-0">주문과 판매 상품의 매출 흐름을 기간별로 확인합니다.</p>
     </div>
 </div>
 
-<!-- 매출 요약 카드 -->
+{% if date_error %}
+<div class="alert alert-warning py-2" role="alert">{{ date_error }}</div>
+{% endif %}
+{% if data_error %}
+<div class="alert alert-danger py-2" role="alert">{{ data_error }}</div>
+{% endif %}
+
+<div class="admin-card p-3 mb-4">
+    <form method="get" action="{{ url_for('admin.sales') }}" class="row g-3 align-items-end">
+        <div class="col-12 col-sm-5 col-lg-4">
+            <label for="start-date" class="form-label small fw-semibold">조회 시작일</label>
+            <input type="date" class="form-control" id="start-date" name="start_date" value="{{ start_date }}" required>
+        </div>
+        <div class="col-12 col-sm-5 col-lg-4">
+            <label for="end-date" class="form-label small fw-semibold">조회 종료일</label>
+            <input type="date" class="form-control" id="end-date" name="end_date" value="{{ end_date }}" required>
+        </div>
+        <div class="col-12 col-sm-2 col-lg-4 d-flex gap-2">
+            <button type="submit" class="btn btn-primary flex-grow-1">
+                <i class="bi bi-search me-1"></i> 조회
+            </button>
+            <a href="{{ url_for('admin.sales') }}" class="btn btn-outline-secondary">이번 달</a>
+        </div>
+    </form>
+</div>
+
+<h5 class="fw-bold mb-3">주요 기간 매출</h5>
 <div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="stat-card" style="border-left-color: #004ea2;">
-            <span class="text-secondary small fw-semibold">총 유효 매출액</span>
-            <h4 class="fw-bold mt-1 mb-0">{{ total_revenue | locale_currency }}</h4>
-            <div class="mt-2 text-secondary small" style="font-size: 0.78rem;">
-                <i class="bi bi-check-circle-fill text-success me-1"></i> 총 {{ total_valid_orders }}건 주문 기준
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4">
-        <div class="stat-card" style="border-left-color: #059669;">
-            <span class="text-secondary small fw-semibold">오늘 매출액</span>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stat-card h-100" style="border-left-color: #059669;">
+            <span class="text-secondary small fw-semibold">오늘 매출</span>
             <h4 class="fw-bold mt-1 mb-0 text-success">{{ today_revenue | locale_currency }}</h4>
-            <div class="mt-2 text-secondary small" style="font-size: 0.78rem;">
-                <i class="bi bi-clock-history text-primary me-1"></i> 금일 발생 실시간 결제
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stat-card h-100" style="border-left-color: #64748b;">
+            <span class="text-secondary small fw-semibold">어제 매출</span>
+            <h4 class="fw-bold mt-1 mb-0">{{ yesterday_revenue | locale_currency }}</h4>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stat-card h-100" style="border-left-color: #004ea2;">
+            <span class="text-secondary small fw-semibold">이번 주 매출</span>
+            <h4 class="fw-bold mt-1 mb-0">{{ week_revenue | locale_currency }}</h4>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-3">
+        <div class="stat-card h-100" style="border-left-color: #f59e0b;">
+            <span class="text-secondary small fw-semibold">이번 달 매출</span>
+            <h4 class="fw-bold mt-1 mb-0">{{ month_revenue | locale_currency }}</h4>
+        </div>
+    </div>
+</div>
+
+<h5 class="fw-bold mb-3">선택 기간 요약 <span class="text-secondary fs-6 fw-normal">{{ start_date }} ~ {{ end_date }}</span></h5>
+<div class="row g-3 mb-4">
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="stat-card h-100">
+            <span class="text-secondary small fw-semibold">전체 주문 건수</span>
+            <h4 class="fw-bold mt-1 mb-0">{{ total_order_count }}건</h4>
+            <div class="mt-2 text-secondary small">취소·환불 포함 전체 주문</div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="stat-card h-100" style="border-left-color: #004ea2;">
+            <span class="text-secondary small fw-semibold">선택 기간 매출</span>
+            <h4 class="fw-bold mt-1 mb-0 text-primary">{{ selected_revenue | locale_currency }}</h4>
+            <div class="mt-2 text-secondary small">{{ selected_order_count }}건 주문 기준</div>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="stat-card h-100" style="border-left-color: #7c3aed;">
+            <span class="text-secondary small fw-semibold">선택 기간 주문 건수</span>
+            <h4 class="fw-bold mt-1 mb-0">{{ selected_order_count }}건</h4>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="stat-card h-100" style="border-left-color: #0891b2;">
+            <span class="text-secondary small fw-semibold">판매 상품 수</span>
+            <h4 class="fw-bold mt-1 mb-0">{{ selected_product_units }}개</h4>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="stat-card h-100" style="border-left-color: #f59e0b;">
+            <span class="text-secondary small fw-semibold">선택 기간 평균 주문 금액</span>
+            <h4 class="fw-bold mt-1 mb-0">{{ average_order_amount | locale_currency }}</h4>
+        </div>
+    </div>
+    <div class="col-12 col-sm-6 col-xl-4">
+        <div class="stat-card h-100" style="border-left-color: #334155;">
+            <span class="text-secondary small fw-semibold">전체 유효 매출</span>
+            <h4 class="fw-bold mt-1 mb-0">{{ total_revenue | locale_currency }}</h4>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4 mb-4">
+    <div class="col-12 col-xl-7">
+        <div class="admin-card h-100">
+            <div class="admin-card-header d-flex align-items-center gap-2">
+                <i class="bi bi-calendar-event text-primary"></i> 일별 매출
+            </div>
+            <div class="p-3">
+                {% for item in daily_sales %}
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <span class="small text-secondary flex-shrink-0" style="width: 96px;">{{ item.date }}</span>
+                    <div class="progress flex-grow-1" role="progressbar" aria-label="{{ item.date }} 매출" aria-valuenow="{{ item.bar_width }}" aria-valuemin="0" aria-valuemax="100" style="height: 10px;">
+                        <div class="progress-bar bg-primary" style="width: {{ item.bar_width }}%;"></div>
+                    </div>
+                    <span class="small fw-semibold text-end flex-shrink-0" style="width: 112px;">{{ item.revenue | locale_currency }}</span>
+                </div>
+                {% else %}
+                <p class="text-center text-secondary small py-4 mb-0">선택 기간 매출 내역이 없습니다.</p>
+                {% endfor %}
             </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="stat-card" style="border-left-color: #f59e0b;">
-            <span class="text-secondary small fw-semibold">평균 주문 객단가 (AOV)</span>
-            <h4 class="fw-bold mt-1 mb-0">
-                {% if total_valid_orders > 0 %}
-                    {{ (total_revenue // total_valid_orders) | locale_currency }}
+    <div class="col-12 col-xl-5">
+        <div class="admin-card h-100">
+            <div class="admin-card-header d-flex align-items-center gap-2">
+                <i class="bi bi-calendar3 text-warning"></i> 월별 매출
+            </div>
+            <div class="p-3">
+                {% for item in monthly_sales %}
+                <div class="d-flex align-items-center gap-3 mb-3">
+                    <span class="small text-secondary flex-shrink-0" style="width: 72px;">{{ item.month }}</span>
+                    <div class="progress flex-grow-1" role="progressbar" aria-label="{{ item.month }} 매출" aria-valuenow="{{ item.bar_width }}" aria-valuemin="0" aria-valuemax="100" style="height: 10px;">
+                        <div class="progress-bar bg-warning" style="width: {{ item.bar_width }}%;"></div>
+                    </div>
+                    <span class="small fw-semibold text-end flex-shrink-0" style="width: 112px;">{{ item.revenue | locale_currency }}</span>
+                </div>
                 {% else %}
-                    0원
-                {% endif %}
-            </h4>
-            <div class="mt-2 text-secondary small" style="font-size: 0.78rem;">
-                건당 평균 결제 금액
+                <p class="text-center text-secondary small py-4 mb-0">선택 기간 매출 내역이 없습니다.</p>
+                {% endfor %}
             </div>
         </div>
     </div>
 </div>
 
-<!-- 일자별 매출 현황 -->
-<div class="admin-card mb-4">
-    <div class="admin-card-header d-flex justify-content-between align-items-center">
-        <div class="d-flex align-items-center gap-2">
-            <i class="bi bi-calendar-event text-primary"></i>
-            <span>일자별 매출 추이</span>
+<div class="row g-4">
+    <div class="col-12 col-xl-7">
+        <div class="admin-card h-100">
+            <div class="admin-card-header d-flex align-items-center gap-2">
+                <i class="bi bi-box-seam text-primary"></i> 상품별 매출
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light small text-secondary">
+                        <tr>
+                            <th class="ps-3">상품</th>
+                            <th class="text-end">판매량</th>
+                            <th class="text-end pe-3">매출</th>
+                        </tr>
+                    </thead>
+                    <tbody class="small">
+                        {% for item in product_sales %}
+                        <tr>
+                            <td class="ps-3 fw-semibold">{{ item.name }}</td>
+                            <td class="text-end">{{ item.quantity }}개</td>
+                            <td class="text-end pe-3 fw-bold text-primary">{{ item.revenue | locale_currency }}</td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="3" class="text-center py-4 text-secondary">상품 판매 내역이 없습니다.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         </div>
     </div>
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="table-light small text-secondary">
-                <tr>
-                    <th class="ps-3">일자</th>
-                    <th class="text-end pe-3">매출 합계</th>
-                </tr>
-            </thead>
-            <tbody class="small">
-                {% if sales_by_date %}
-                    {% for dt, amt in sales_by_date %}
-                    <tr>
-                        <td class="ps-3 fw-bold">{{ dt }}</td>
-                        <td class="text-end pe-3 fw-bold text-primary">{{ amt | locale_currency }}</td>
-                    </tr>
-                    {% endfor %}
+    <div class="col-12 col-xl-5">
+        <div class="admin-card h-100">
+            <div class="admin-card-header d-flex align-items-center gap-2">
+                <i class="bi bi-trophy text-warning"></i> 판매량 인기 상품 TOP 5
+            </div>
+            <div class="list-group list-group-flush">
+                {% for item in top_products %}
+                <div class="list-group-item px-3 py-3 d-flex justify-content-between align-items-center gap-3">
+                    <div class="d-flex align-items-center gap-3 min-w-0">
+                        <span class="badge {% if loop.first %}text-bg-warning{% else %}text-bg-light text-dark{% endif %}">{{ loop.index }}</span>
+                        <span class="small fw-semibold text-truncate">{{ item.name }}</span>
+                    </div>
+                    <span class="small text-secondary flex-shrink-0">{{ item.quantity }}개</span>
+                </div>
                 {% else %}
-                    <tr>
-                        <td colspan="2" class="text-center py-4 text-secondary">
-                            매출 내역이 없습니다.
-                        </td>
-                    </tr>
-                {% endif %}
-            </tbody>
-        </table>
+                <div class="text-center text-secondary small py-4">판매 내역이 없습니다.</div>
+                {% endfor %}
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}

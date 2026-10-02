@@ -48,19 +48,41 @@ window.CartManager = {
         this.updateBadge();
     },
 
-    addItem(product, size, quantity = 1, optionId = null, color = null, cartId = null) {
+    addItem(product, size, quantity = 1, optionId = null, color = null, cartId = null, customOptions = {}, unitPrice = null) {
         if (!size) {
             alert('사이즈를 선택해주세요.');
             return false;
         }
 
         const items = this.getItems();
-        // optionId가 있는 경우 optionId 기준, 없으면 id + size 기준 식별
+        const identityKey = options => {
+            const value = options || {};
+            return JSON.stringify({
+                patch: value.patch?.value || 'none',
+                marking: {
+                    type: value.marking?.type || 'none',
+                    player_id: value.marking?.player_id || '',
+                    name: value.marking?.name || '',
+                    number: value.marking?.number ?? ''
+                },
+                embroidery: {
+                    value: value.embroidery?.value || 'none',
+                    text: value.embroidery?.text || ''
+                }
+            });
+        };
+        const optionsKey = identityKey(customOptions);
+        // 같은 상품 옵션과 커스터마이징 선택값이 모두 일치할 때만 수량을 합친다.
         const existingIndex = items.findIndex(item => {
             if (optionId && item.option_id) {
-                return item.option_id === optionId;
+                const itemOptions = item.custom_options || {};
+                const itemOptionsKey = identityKey(itemOptions);
+                return item.option_id === optionId && itemOptionsKey === optionsKey;
             }
-            return item.id === product.id && item.size === size && (color ? item.color === color : true);
+            const itemOptions = item.custom_options || {};
+            const itemOptionsKey = identityKey(itemOptions);
+            return item.id === product.id && item.size === size && (color ? item.color === color : true)
+                && itemOptionsKey === optionsKey;
         });
 
         if (existingIndex > -1) {
@@ -68,13 +90,19 @@ window.CartManager = {
             if (optionId) items[existingIndex].option_id = optionId;
             if (color) items[existingIndex].color = color;
             if (cartId) items[existingIndex].cart_id = cartId;
+            if (unitPrice !== null) {
+                items[existingIndex].price = Number(unitPrice);
+                items[existingIndex].unit_price = Number(unitPrice);
+            }
         } else {
             items.push({
                 id: product.id,
                 cart_id: cartId || null,
                 option_id: optionId,
                 name: product.name,
-                price: Number(product.price),
+                price: Number(unitPrice !== null ? unitPrice : product.price),
+                unit_price: Number(unitPrice !== null ? unitPrice : product.price),
+                custom_options: customOptions || {},
                 image_url: product.image_url || product.thumbnail_url,
                 category: product.category,
                 color: color || '',

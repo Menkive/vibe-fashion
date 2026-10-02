@@ -36,26 +36,22 @@ def is_admin_user():
     if not user_id:
         return False
     
-    # 세션 캐시 확인
     user_data = session.get('user', {})
-    if isinstance(user_data, dict) and user_data.get('role') == 'admin':
-        return True
-
-    # DB profiles 테이블에서 실시간 role 검증
     db = get_db()
-    if db and user_id:
-        try:
-            res = db.table('profiles').select('role').eq('id', user_id).execute()
-            if res.data and res.data[0].get('role') == 'admin':
-                # 세션에도 role 동기화
-                if isinstance(session.get('user'), dict):
-                    session['user']['role'] = 'admin'
-                    session.modified = True
-                return True
-        except Exception as e:
-            logger.warning(f"관리자 권한 확인 중 오류: {e}")
+    if not db:
+        return False
 
-    return False
+    try:
+        res = db.table('profiles').select('role').eq('id', user_id).execute()
+        role = res.data[0].get('role') if res.data else None
+        if isinstance(user_data, dict) and user_data.get('role') != role:
+            user_data['role'] = role or 'customer'
+            session['user'] = user_data
+            session.modified = True
+        return role == 'admin'
+    except Exception as e:
+        logger.warning(f"관리자 권한 확인 중 오류: {e}")
+        return False
 
 
 def admin_required(f):
@@ -1061,40 +1057,169 @@ def sales():
     """관리자 매출 분석 및 주문 정산 현황"""
     import datetime
     from collections import defaultdict
+
+    today = datetime.date.today()
+    default_start = today.replace(day=1)
+    date_error = None
+    try:
+        start_date = datetime.date.fromisoformat(request.args.get('start_date', '') or default_start.isoformat())
+        end_date = datetime.date.fromisoformat(request.args.get('end_date', '') or today.isoformat())
+        if start_date > end_date:
+            date_error = '조회 시작일은 종료일보다 늦을 수 없습니다.'
+            raise ValueError
+    except ValueError:
+        start_date = default_start
+        end_date = today
+        date_error = date_error or '조회 기간을 YYYY-MM-DD 형식으로 입력해 주세요.'
+
     db = get_db()
-
-    sales_by_date = defaultdict(int)
-    sales_by_status = defaultdict(int)
-    total_revenue = 0
-    total_valid_orders = 0
-    today_revenue = 0
-    today_str = datetime.date.today().isoformat()
-
     orders_list = []
+    order_items = []
+    data_error = None
+
+    def fetch_all_rows(table_name, columns, order_by=None):
+        rows = []
+        offset = 0
+        page_size = 1000
+        while True:
+            query = db.table(table_name).select(columns)
+            if order_by:
+                query = query.order(order_by, desc=True)
+            response = query.range(offset, offset + page_size - 1).execute()
+            page = response.data or []
+            rows.extend(page)
+            if len(page) < page_size:
+                return rows
+            offset += page_size
+
     if db:
         try:
-            res = db.table('orders').select('*').order('created_at', desc=True).execute()
-            orders_list = res.data or []
-            for o in orders_list:
-                amt = int(float(o.get('final_amount', 0)))
-                st = o.get('status', '')
-                dt = str(o.get('created_at', ''))[:10]
-
-                if st not in ['cancelled', 'refunded']:
-                    total_revenue += amt
-                    total_valid_orders += 1
-                    sales_by_date[dt] += amt
-                    if dt == today_str:
-                        today_revenue += amt
-                sales_by_status[st] += amt
+            orders_list = fetch_all_rows(
+                'orders', 'id, final_amount, status, created_at', 'created_at'
+            )
         except Exception as e:
-            logger.error(f"매출 통계 조회 오류: {e}")
+            logger.error(f"매출 주문 조회 오류: {e}")
+            data_error = '주문 매출 데이터를 불러오지 못했습니다.'
+        try:
+            order_items = fetch_all_rows(
+                'order_items', 'order_id, product_id, product_name, quantity, subtotal'
+            )
+        except Exception as e:
+            logger.error(f"매출 상품 상세 조회 오류: {e}")
+            data_error = '상품별 매출 데이터를 불러오지 못했습니다.'
+    else:
+        data_error = '데이터베이스에 연결할 수 없습니다.'
+
+    valid_orders = []
+    for order in orders_list:
+        if order.get('status') in ['cancelled', 'refunded']:
+            continue
+        try:
+            order_date = datetime.date.fromisoformat(str(order.get('created_at', ''))[:10])
+            amount = int(float(order.get('final_amount') or 0))
+        except (ValueError, TypeError):
+            continue
+        valid_orders.append({
+            'id': str(order.get('id')),
+            'date': order_date,
+            'amount': amount,
+        })
+
+    def revenue_between(start, end):
+        return sum(order['amount'] for order in valid_orders if start <= order['date'] <= end)
+
+    yesterday = today - datetime.timedelta(days=1)
+    week_start = today - datetime.timedelta(days=today.weekday())
+    month_start = today.replace(day=1)
+    total_revenue = sum(order['amount'] for order in valid_orders)
+    today_revenue = revenue_between(today, today)
+    yesterday_revenue = revenue_between(yesterday, yesterday)
+    week_revenue = revenue_between(week_start, today)
+    month_revenue = revenue_between(month_start, today)
+
+    selected_orders = [
+        order for order in valid_orders
+        if start_date <= order['date'] <= end_date
+    ]
+    selected_order_ids = {order['id'] for order in selected_orders}
+    selected_revenue = sum(order['amount'] for order in selected_orders)
+    sales_by_date = defaultdict(int)
+    sales_by_month = defaultdict(int)
+    for order in selected_orders:
+        sales_by_date[order['date']] += order['amount']
+        sales_by_month[order['date'].strftime('%Y-%m')] += order['amount']
+
+    products_by_id = {}
+    selected_product_units = 0
+    for item in order_items:
+        if str(item.get('order_id')) not in selected_order_ids:
+            continue
+        try:
+            quantity = max(0, int(item.get('quantity') or 0))
+            item_revenue = int(float(item.get('subtotal') or 0))
+        except (ValueError, TypeError):
+            continue
+        if quantity == 0:
+            continue
+        selected_product_units += quantity
+        product_id = str(item.get('product_id') or item.get('product_name') or 'unknown')
+        product = products_by_id.setdefault(product_id, {
+            'name': item.get('product_name') or '삭제된 상품',
+            'quantity': 0,
+            'revenue': 0,
+        })
+        product['quantity'] += quantity
+        product['revenue'] += item_revenue
+
+    product_sales = sorted(
+        products_by_id.values(),
+        key=lambda item: (item['revenue'], item['quantity']),
+        reverse=True
+    )
+    top_products = sorted(
+        products_by_id.values(),
+        key=lambda item: (item['quantity'], item['revenue']),
+        reverse=True
+    )[:5]
+
+    max_daily_revenue = max(sales_by_date.values(), default=0)
+    daily_sales = [
+        {
+            'date': date.isoformat(),
+            'revenue': revenue,
+            'bar_width': round(revenue / max_daily_revenue * 100) if max_daily_revenue else 0,
+        }
+        for date, revenue in sorted(sales_by_date.items(), reverse=True)
+    ]
+    max_monthly_revenue = max(sales_by_month.values(), default=0)
+    monthly_sales = [
+        {
+            'month': month,
+            'revenue': revenue,
+            'bar_width': round(revenue / max_monthly_revenue * 100) if max_monthly_revenue else 0,
+        }
+        for month, revenue in sorted(sales_by_month.items(), reverse=True)
+    ]
 
     return render_template(
         'admin/sales.html',
         total_revenue=total_revenue,
-        total_valid_orders=total_valid_orders,
+        total_valid_orders=len(valid_orders),
+        total_order_count=len(orders_list),
         today_revenue=today_revenue,
-        sales_by_date=sorted(sales_by_date.items(), reverse=True),
-        orders_list=orders_list[:15]
+        yesterday_revenue=yesterday_revenue,
+        week_revenue=week_revenue,
+        month_revenue=month_revenue,
+        selected_revenue=selected_revenue,
+        selected_order_count=len(selected_orders),
+        selected_product_units=selected_product_units,
+        average_order_amount=selected_revenue // len(selected_orders) if selected_orders else 0,
+        start_date=start_date.isoformat(),
+        end_date=end_date.isoformat(),
+        date_error=date_error,
+        data_error=data_error,
+        daily_sales=daily_sales,
+        monthly_sales=monthly_sales,
+        product_sales=product_sales,
+        top_products=top_products,
     )

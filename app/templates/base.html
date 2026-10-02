@@ -246,12 +246,18 @@
         document.addEventListener('DOMContentLoaded', () => {
             const logoutLink = document.getElementById('logout-link');
             if (logoutLink) {
-                logoutLink.addEventListener('click', (e) => {
+                logoutLink.addEventListener('click', async (e) => {
                     e.preventDefault();
-                    console.log('[Logout] localStorage 정리 중...');
                     CartManager.logout();
-                    // 로그아웃 페이지로 이동
-                    window.location.href = "{{ url_for('main.logout') }}";
+                    try {
+                        const response = await fetch("{{ url_for('main.logout') }}", {
+                            method: 'POST',
+                            headers: { 'X-CSRF-Token': "{{ csrf_token() }}" }
+                        });
+                        if (response.ok) window.location.href = response.url;
+                    } catch (error) {
+                        console.error('로그아웃 요청에 실패했습니다.', error);
+                    }
                 });
             }
         });

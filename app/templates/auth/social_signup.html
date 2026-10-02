@@ -96,9 +96,12 @@
                         </form>
 
                         <div class="text-center pt-2">
-                            <a href="{{ url_for('main.logout') }}" class="small text-muted text-decoration-none">
-                                <i class="bi bi-arrow-left me-1"></i> 가입 취소하고 돌아가기
-                            </a>
+                            <form method="post" action="{{ url_for('main.logout') }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <button type="submit" class="btn btn-link btn-sm text-muted text-decoration-none">
+                                    <i class="bi bi-arrow-left me-1"></i> 가입 취소하고 돌아가기
+                                </button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -153,7 +156,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch("{{ url_for('auth.complete_social_signup') }}", {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': "{{ csrf_token() }}"
                 },
                 body: JSON.stringify({
                     phone: phone,

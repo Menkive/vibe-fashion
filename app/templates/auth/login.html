@@ -26,6 +26,8 @@
                             <i class="bi bi-exclamation-circle-fill me-1"></i>
                             {% if error == 'email_not_confirmed' %}
                                 이메일 인증이 완료되지 않았습니다. 받은 메일의 인증 링크를 확인해주세요.
+                            {% elif error == 'kakao_state_invalid' %}
+                                카카오 로그인 요청이 만료되었거나 확인되지 않았습니다. 다시 시도해 주세요.
                             {% elif error == 'invalid_credentials' %}
                                 이메일 또는 비밀번호가 올바르지 않습니다.
                             {% elif error == 'login_required' %}
@@ -78,6 +80,7 @@
 
                         <!-- 로그인 폼 (POST /auth/login) -->
                         <form action="{{ url_for('auth.login') }}" method="POST">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <div class="mb-3">
                                 <label for="login-email" class="form-label small fw-semibold text-secondary">이메일 주소</label>
                                 <div class="input-group">

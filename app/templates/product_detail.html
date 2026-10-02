@@ -112,6 +112,60 @@
                     <input type="hidden" id="selected-option-id" name="product_option_id" value="">
                 </div>
 
+                {% if product.product_type in ['jersey', 'kids_jersey'] %}
+                <div class="border-top pt-3 mt-2 mb-3">
+                    <h6 class="fw-bold mb-3"><i class="bi bi-stars me-1 text-primary"></i>유니폼 추가 옵션</h6>
+                    <div class="mb-3">
+                        <label for="select-patch" class="form-label fw-semibold">광고패치</label>
+                        <select class="form-select" id="select-patch">
+                            {% for choice in uniform_options.patch %}
+                            <option value="{{ choice.option_value }}" data-price="{{ choice.additional_price|int }}">{{ choice.option_name }}{% if choice.additional_price|int > 0 %} (+{{ choice.additional_price|int|locale_currency }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="select-marking" class="form-label fw-semibold">선수 및 등번호 마킹</label>
+                        <select class="form-select" id="select-marking">
+                            {% for choice in uniform_options.marking %}
+                            <option value="{{ choice.option_value }}" data-price="{{ choice.additional_price|int }}">{{ choice.option_name }}{% if choice.additional_price|int > 0 %} (+{{ choice.additional_price|int|locale_currency }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mb-3 d-none" id="player-marking-fields">
+                        <label for="select-player" class="form-label">마킹할 선수 <span class="text-danger">*</span></label>
+                        <select class="form-select" id="select-player">
+                            <option value="">선수를 선택해 주세요</option>
+                            {% for player in players %}
+                            <option value="{{ player.id }}" data-price="{{ player.additional_price|int }}">{{ player.number }} {{ player.name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if not players %}<div class="form-text">현재 등록된 선수가 없습니다. 선수 명단 등록 후 선택할 수 있습니다.</div>{% endif %}
+                    </div>
+                    <div class="row g-2 mb-3 d-none" id="custom-marking-fields">
+                        <div class="col-8">
+                            <label for="input-marking-name" class="form-label">마킹 이름 <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="input-marking-name" maxlength="20" placeholder="예: SEUNGHUN">
+                        </div>
+                        <div class="col-4">
+                            <label for="input-marking-number" class="form-label">등번호 <span class="text-danger">*</span></label>
+                            <input type="number" class="form-control" id="input-marking-number" min="0" max="99" step="1" placeholder="0~99">
+                        </div>
+                    </div>
+                    <div class="mb-1">
+                        <label for="select-embroidery" class="form-label fw-semibold">자수 마킹</label>
+                        <select class="form-select" id="select-embroidery">
+                            {% for choice in uniform_options.embroidery %}
+                            <option value="{{ choice.option_value }}" data-price="{{ choice.additional_price|int }}">{{ choice.option_name }}{% if choice.additional_price|int > 0 %} (+{{ choice.additional_price|int|locale_currency }}){% endif %}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="mt-2 d-none" id="embroidery-fields">
+                        <label for="input-embroidery-text" class="form-label">자수 문구 <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control" id="input-embroidery-text" maxlength="20" placeholder="예: SEUNGHUN">
+                    </div>
+                </div>
+                {% endif %}
+
                 <!-- 3. 수량 선택 (1~10, 재고 이하로 max 동적 적용) -->
                 <div class="mb-4">
                     <label for="input-quantity" class="form-label fw-bold d-flex justify-content-between">
@@ -196,6 +250,8 @@ document.addEventListener('DOMContentLoaded', () => {
         id: {{ product.id | tojson }},
         name: {{ product.name | tojson }},
         price: {{ product.price }},
+        customizable: {{ (product.product_type in ['jersey', 'kids_jersey']) | tojson }},
+        customOptions: {{ uniform_options | tojson }},
         image_url: {{ (product.thumbnail_url or product.image_url) | tojson }},
         category: {{ product.category | tojson }}
     };
@@ -214,6 +270,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const optionAlertMsg = document.getElementById('option-alert-msg');
     const addCartBtn = document.getElementById('btn-add-cart');
     const buyNowBtn = document.getElementById('btn-buy-now');
+    const patchSelect = document.getElementById('select-patch');
+    const markingSelect = document.getElementById('select-marking');
+    const playerFields = document.getElementById('player-marking-fields');
+    const playerSelect = document.getElementById('select-player');
+    const customMarkingFields = document.getElementById('custom-marking-fields');
+    const embroiderySelect = document.getElementById('select-embroidery');
+    const embroideryFields = document.getElementById('embroidery-fields');
 
     // 현재 선택된 옵션 데이터 캐시
     let currentSizesData = [];
@@ -310,9 +373,55 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateTotalPrice() {
         const qty = parseInt(qtyInput.value, 10) || 1;
-        const total = productData.price * qty;
+        const sizePrice = selectedOption ? Number(selectedOption.additional_price || 0) : 0;
+        const customPrice = productData.customizable ? getCustomOptions().totalAdditionalPrice : 0;
+        const total = (productData.price + sizePrice + customPrice) * qty;
         totalPriceDisplay.textContent = total.toLocaleString() + '원';
     }
+
+    function selectedChoicePrice(select) {
+        if (!select) return 0;
+        return Number(select.options[select.selectedIndex]?.dataset.price || 0);
+    }
+
+    function getCustomOptions() {
+        if (!productData.customizable) return { values: {}, totalAdditionalPrice: 0 };
+        const values = {
+            patch: patchSelect.value,
+            marking: markingSelect.value,
+            embroidery: embroiderySelect.value
+        };
+        let totalAdditionalPrice = selectedChoicePrice(patchSelect)
+            + selectedChoicePrice(markingSelect)
+            + selectedChoicePrice(embroiderySelect);
+        if (values.marking === 'player' && playerSelect.value) {
+            totalAdditionalPrice += Number(playerSelect.options[playerSelect.selectedIndex]?.dataset.price || 0);
+            values.player_id = playerSelect.value;
+        } else if (values.marking === 'custom') {
+            values.custom_name = document.getElementById('input-marking-name').value.trim();
+            values.custom_number = document.getElementById('input-marking-number').value;
+        }
+        if (values.embroidery === 'add') {
+            values.embroidery_text = document.getElementById('input-embroidery-text').value.trim();
+        }
+        return { values, totalAdditionalPrice };
+    }
+
+    function updateCustomizationFields() {
+        if (!productData.customizable) return;
+        playerFields.classList.toggle('d-none', markingSelect.value !== 'player');
+        customMarkingFields.classList.toggle('d-none', markingSelect.value !== 'custom');
+        embroideryFields.classList.toggle('d-none', embroiderySelect.value !== 'add');
+        updateTotalPrice();
+    }
+
+    [patchSelect, markingSelect, playerSelect, embroiderySelect].forEach(select => {
+        if (select) select.addEventListener('change', updateCustomizationFields);
+    });
+    ['input-marking-name', 'input-marking-number', 'input-embroidery-text'].forEach(id => {
+        const input = document.getElementById(id);
+        if (input) input.addEventListener('input', updateTotalPrice);
+    });
 
     plusBtn.addEventListener('click', () => {
         const current = parseInt(qtyInput.value, 10) || 1;
@@ -359,9 +468,36 @@ document.addEventListener('DOMContentLoaded', () => {
             return null;
         }
 
+        const customization = getCustomOptions();
+        if (productData.customizable && customization.values.marking === 'player' && !customization.values.player_id) {
+            optionAlertMsg.textContent = '마킹할 선수를 선택해주세요.';
+            optionAlert.classList.remove('d-none');
+            playerSelect.focus();
+            return null;
+        }
+        if (productData.customizable && customization.values.marking === 'custom') {
+            const name = customization.values.custom_name || '';
+            const number = customization.values.custom_number || '';
+            if (!name || !number || !/^[A-Za-z가-힣 ]{1,20}$/.test(name) || !/^\d{1,2}$/.test(number) || Number(number) > 99) {
+                optionAlertMsg.textContent = '마킹 이름과 등번호를 입력해주세요. 이름은 한글/영문 1~20자, 등번호는 0~99로 입력해 주세요.';
+                optionAlert.classList.remove('d-none');
+                document.getElementById('input-marking-name').focus();
+                return null;
+            }
+        }
+        if (productData.customizable && customization.values.embroidery === 'add') {
+            const text = customization.values.embroidery_text || '';
+            if (!text || !/^[A-Za-z가-힣 ]{1,20}$/.test(text)) {
+                optionAlertMsg.textContent = '자수 문구를 한글 또는 영문 1~20자로 입력해주세요.';
+                optionAlert.classList.remove('d-none');
+                document.getElementById('input-embroidery-text').focus();
+                return null;
+            }
+        }
+
         optionAlert.classList.add('d-none');
         const quantity = parseInt(qtyInput.value, 10) || 1;
-        return { color, size, optionId, quantity };
+        return { color, size, optionId, quantity, customOptions: customization.values };
     }
 
     // 4. 장바구니 담기 비동기 요청 함수 (바로구매와 구조 분리)
@@ -375,7 +511,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 },
                 body: JSON.stringify({
                     product_option_id: selection.optionId,
-                    quantity: selection.quantity
+                    quantity: selection.quantity,
+                    custom_options: selection.customOptions
                 })
             });
 
@@ -405,7 +542,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 selection.quantity,
                 selection.optionId,
                 selection.color,
-                result.data && result.data.cart_id ? result.data.cart_id : null
+                result.data && result.data.cart_id ? result.data.cart_id : null,
+                result.data.custom_options || {},
+                result.data.unit_price
             );
 
             return true;

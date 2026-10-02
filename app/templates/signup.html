@@ -226,7 +226,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch("{{ url_for('main.signup') }}", {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-Token': "{{ csrf_token() }}"
+                },
                 body: JSON.stringify({
                     name,
                     email,
@@ -242,7 +245,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (data.success) {
                 showAlert(data.message || '회원가입이 완료되었습니다!', 'success');
                 setTimeout(() => {
-                    window.location.href = "{{ url_for('main.index') }}";
+                    window.location.href = data.redirect_url || "{{ url_for('main.index') }}";
                 }, 800);
             } else {
                 showAlert(data.message || '회원가입에 실패했습니다.', 'danger');

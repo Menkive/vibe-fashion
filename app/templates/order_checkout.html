@@ -51,6 +51,9 @@
                                     {% endif %}
                                     <span>사이즈: <strong class="badge bg-light text-dark border">{{ item.size }}</strong></span>
                                 </div>
+                                {% if item.custom_options_label %}
+                                <div class="small text-primary mb-1">{{ item.custom_options_label }}</div>
+                                {% endif %}
                                 <div class="small text-secondary">
                                     단가: {{ item.price|locale_currency }} &times; <strong>{{ item.quantity }}개</strong>
                                 </div>

@@ -37,76 +37,24 @@ def restore_order_stock_and_record(
         return False, "데이터베이스 연결에 실패했습니다.", 0
 
     try:
-        # 1. 주문 조회
-        order_res = db_client.table('orders').select('*').eq('id', order_id).execute()
-        if not order_res.data:
-            return False, "주문을 찾을 수 없습니다.", 0
+        response = db_client.rpc('restore_order_stock', {
+            'p_order_id': order_id,
+            'p_target_status': target_status,
+            'p_reason': reason,
+            'p_is_admin': is_admin
+        }).execute()
+        result = response.data
+        if isinstance(result, list):
+            result = result[0] if result else None
+        if not isinstance(result, dict):
+            logger.error("재고 복구 RPC가 예상하지 못한 응답을 반환했습니다: %r", result)
+            return False, "재고 복구 처리 결과를 확인할 수 없습니다.", 0
 
-        current_order = order_res.data[0]
-        current_status = current_order.get('status')
-        shipping_memo = current_order.get('shipping_memo') or ''
-
-        # 2. 이미 취소/환불되었거나 복원 완료 플래그가 있는지 확인 (중복 복구 원천 방지)
-        is_already_restored = STOCK_RESTORED_FLAG in shipping_memo or current_status in ['cancelled', 'refunded']
-
-        if is_already_restored:
-            # 상태만 최신화 (재고는 중복 복구하지 않음)
-            db_client.table('orders').update({'status': target_status}).eq('id', order_id).execute()
-            return True, "이미 재고 복구가 완료된 주문입니다. (중복 복구 방지됨)", 0
-
-        # 3. 고객 직접 취소 시 상태 검증 (pending, paid만 취소 가능)
-        if not is_admin and current_status not in ['pending', 'paid']:
-            return False, f"현재 '{current_status}' 상태의 주문은 직접 취소할 수 없습니다. 고객센터에 문의해 주세요.", 0
-
-        # 4. 주문 품목 조회 및 옵션 재고 복구
-        items_res = db_client.table('order_items').select('id, product_id, option_id, product_name, quantity').eq('order_id', order_id).execute()
-        items = items_res.data or []
-
-        restored_count = 0
-        for it in items:
-            opt_id = it.get('option_id')
-            qty = int(it.get('quantity', 0))
-            if opt_id and qty > 0:
-                try:
-                    cur_opt = db_client.table('product_options').select('id, stock, stock_quantity').eq('id', opt_id).execute()
-                    if cur_opt.data:
-                        o_data = cur_opt.data[0]
-                        stk = int(o_data.get('stock') if o_data.get('stock') is not None else o_data.get('stock_quantity', 0))
-                        new_stk = stk + qty
-                        up_payload = {}
-                        if 'stock' in o_data:
-                            up_payload['stock'] = new_stk
-                        if 'stock_quantity' in o_data:
-                            up_payload['stock_quantity'] = new_stk
-
-                        db_client.table('product_options').update(up_payload).eq('id', opt_id).execute()
-                        restored_count += qty
-                except Exception as re:
-                    logger.error(f"재고 복구 실패 (option_id: {opt_id}, qty: {qty}): {re}")
-
-        # 5. 주문 상태 변경 및 중복 복구 방지 플래그 마킹
-        new_memo = f"{STOCK_RESTORED_FLAG} {shipping_memo}".strip()
-        db_client.table('orders').update({
-            'status': target_status,
-            'shipping_memo': new_memo
-        }).eq('id', order_id).execute()
-
-        # 6. 환불(refunded)인 경우 공식 환불 테이블(refunds)에 기록
-        if target_status == 'refunded' or (not is_admin and current_status == 'paid'):
-            try:
-                db_client.table('refunds').insert({
-                    'order_id': order_id,
-                    'user_id': current_order.get('user_id'),
-                    'refund_amount': float(current_order.get('final_amount', 0)),
-                    'reason': reason,
-                    'status': 'completed',
-                    'admin_memo': f"{'관리자 직권 처리' if is_admin else '고객 직접 취소'} - 재고 {restored_count}개 자동 복구 완료"
-                }).execute()
-            except Exception as rfe:
-                logger.warning(f"환불 테이블 기록 실패 (무시 가능): {rfe}")
-
-        return True, f"주문이 정상 처리되었으며 총 {restored_count}개의 품목 재고가 안전하게 복구되었습니다.", restored_count
-
+        return (
+            bool(result.get('success')),
+            str(result.get('message') or "주문 재고 복구 처리를 완료하지 못했습니다."),
+            int(result.get('restored_count') or 0)
+        )
     except Exception as e:
-        logger.error(f"주문 취소/환불 서비스 처리 중 오류: {e}")
-        return False, f"처리 중 오류가 발생했습니다: {str(e)}", 0
+        logger.error("주문 취소/환불 RPC 처리 오류: %s", e)
+        return False, "주문 취소 처리에 실패했습니다. 데이터베이스 마이그레이션 적용 여부를 확인해 주세요.", 0

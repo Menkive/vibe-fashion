@@ -3,9 +3,16 @@ import os
 import re
 import sys
 import logging
+import hmac
 from functools import wraps
 from flask import Blueprint, render_template, request, session, redirect, url_for, jsonify
-from app.routes.main import get_supabase_client, get_supabase_admin_client
+from app.routes.main import (
+    establish_user_session,
+    get_profile_role,
+    get_supabase_admin_client,
+    get_supabase_client,
+    is_email_confirmed,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,13 +85,7 @@ def login():
         if not user:
             return redirect(url_for('auth.login', error='invalid_credentials'))
 
-        # 이메일 인증 완료 여부 확인
-        # Supabase user 객체의 confirmed_at 또는 email_confirmed_at 속성 검사
-        is_confirmed = False
-        if getattr(user, 'email_confirmed_at', None) or getattr(user, 'confirmed_at', None):
-            is_confirmed = True
-
-        if not is_confirmed:
+        if not is_email_confirmed(user):
             # 이메일 미인증 상태일 때 세션 저장 없이 에러 처리
             return redirect(url_for('auth.login', error='email_not_confirmed'))
 
@@ -92,30 +93,13 @@ def login():
         user_metadata = getattr(user, 'user_metadata', {}) or {}
         user_name = user_metadata.get('full_name') or user_metadata.get('name') or email.split('@')[0]
 
-        # DB profiles 테이블에서 role 조회
-        role = 'customer'
-        admin_client = get_supabase_admin_client()
-        if admin_client:
-            try:
-                prof_res = admin_client.table('profiles').select('role').eq('id', str(user.id)).execute()
-                if prof_res.data and prof_res.data[0].get('role'):
-                    role = prof_res.data[0].get('role')
-            except Exception as pe:
-                logger.warning(f"로그인 시 profile role 조회 오류: {pe}")
-
-        session['user_id'] = str(user.id)
-        session['email'] = user.email
-        session['user'] = {
-            "id": str(user.id),
-            "email": user.email,
-            "name": user_name,
-            "phone": user_metadata.get('phone', ''),
-            "role": role
-        }
-        if auth_res.session:
-            session['access_token'] = auth_res.session.access_token
-            if getattr(auth_res.session, 'refresh_token', None):
-                session['refresh_token'] = auth_res.session.refresh_token
+        establish_user_session(
+            user.id,
+            user.email,
+            user_name,
+            user_metadata.get('phone', ''),
+            role=get_profile_role(str(user.id)),
+        )
 
         return redirect(url_for('main.mypage'))
 
@@ -454,12 +438,21 @@ def oauth_callback():
     # 2. Supabase 내장 교환 실패 시: 카카오 REST 직접 연동 토큰 및 프로필 조회 폴백
     error_detail = None
     if not session_established:
+        expected_state = session.pop('kakao_oauth_state', None)
+        returned_state = request.args.get('state')
+        if not expected_state:
+            logger.warning("Supabase OAuth code 교환 실패 후 카카오 state가 없어 직접 카카오 교환을 중단합니다.")
+            return redirect(url_for('main.login', error='oauth_failed'))
+        if not returned_state or not hmac.compare_digest(expected_state, returned_state):
+            logger.warning("카카오 OAuth state 불일치 또는 누락")
+            return redirect(url_for('main.login', error='kakao_state_invalid'))
+
         kakao_client_id = (
             os.getenv("KAKAO_CLIENT_ID") or
             os.getenv("KAKAO_REST_API_KEY") or
             "8d2260c46401c073f2873b4919c1f169"
         )
-        kakao_client_secret = os.getenv("KAKAO_CLIENT_SECRET") or "pbSsQFn8I8vmZ0BlCqUqfmInm0KvGfrd"
+        kakao_client_secret = os.getenv("KAKAO_CLIENT_SECRET")
 
         if kakao_client_id:
             try:
@@ -953,20 +946,13 @@ def confirm():
             user = auth_res.user
             user_metadata = getattr(user, 'user_metadata', {}) or {}
             user_name = user_metadata.get('full_name') or user_metadata.get('name') or (user.email.split('@')[0] if user.email else '')
-
-            # 세션에 정보 저장
-            session['user_id'] = str(user.id)
-            session['email'] = user.email
-            session['user'] = {
-                "id": str(user.id),
-                "email": user.email,
-                "name": user_name,
-                "phone": user_metadata.get('phone', '')
-            }
-            if auth_res.session:
-                session['access_token'] = auth_res.session.access_token
-                if getattr(auth_res.session, 'refresh_token', None):
-                    session['refresh_token'] = auth_res.session.refresh_token
+            establish_user_session(
+                user.id,
+                user.email,
+                user_name,
+                user_metadata.get('phone', ''),
+                role=get_profile_role(str(user.id)),
+            )
 
             return redirect(url_for('main.mypage', success='email_confirmed'))
         else:
