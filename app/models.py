@@ -227,6 +227,23 @@ INITIAL_PRODUCTS: List[Dict[str, Any]] = [
         "is_featured": False,
         "is_new": True,
         "sales_count": 960
+    },
+    {
+        "id": 14,
+        "name": "2028 양산시민축구단 오피셜 응원타월",
+        "slug": "yangsan-fc-official-cheering-towel",
+        "category": "응원용품",
+        "price": 15000,
+        "original_price": 18000,
+        "description": "양산종합운동장을 푸른 함성으로 물들일 구단 공식 응원 슬로건 타월입니다. 흡습속건 기능성 극세사 타월로 경기 관람과 스포츠 활동 시 최적의 쾌적함을 선사합니다.",
+        "image_url": "/static/images/yangsan-fc-muffler.png",
+        "thumbnail_url": "/static/images/yangsan-fc-muffler.png",
+        "stock": 100,
+        "sizes": ["Free"],
+        "badge": "BEST",
+        "is_featured": True,
+        "is_new": True,
+        "sales_count": 2100
     }
 ]
 

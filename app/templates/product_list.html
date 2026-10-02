@@ -159,7 +159,15 @@ document.addEventListener('DOMContentLoaded', () => {
             const name = item.getAttribute('data-name').toLowerCase();
             const cat = item.getAttribute('data-category');
 
-            const matchCat = (currentCategory === '전체' || cat === currentCategory);
+            let matchCat = false;
+            if (currentCategory === '전체') {
+                matchCat = true;
+            } else if (currentCategory === '액세서리' || currentCategory === '굿즈/액세서리') {
+                matchCat = (cat === '응원용품' || cat === '패션/잡화' || cat === '생활용품' || cat === '액세서리');
+            } else {
+                matchCat = (cat === currentCategory);
+            }
+
             const matchSearch = (!currentSearch || name.includes(currentSearch));
 
             if (matchCat && matchSearch) {

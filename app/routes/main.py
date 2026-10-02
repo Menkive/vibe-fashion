@@ -1,5 +1,6 @@
 # app/routes/main.py - 양산시민축구단 공식 온라인 스토어 라우트
 import os
+import re
 import sys
 import logging
 from flask import Blueprint, render_template, request, jsonify, abort, session, url_for, redirect, current_app
@@ -62,7 +63,10 @@ def fetch_all_products():
         return INITIAL_PRODUCTS
 
     try:
-        response = supabase.table('products').select('*').eq('is_active', True).execute()
+        response = supabase.table('products') \
+            .select('*, categories(name), product_images(image_url, is_primary)') \
+            .eq('is_active', True) \
+            .execute()
         db_items = response.data
         if db_items and len(db_items) >= 4:
             merged = []
@@ -70,12 +74,28 @@ def fetch_all_products():
             excluded_names = ['크롭 티셔츠', '데님 팬츠', '코튼 자켓', '원피스', '스마트폰', '커피']
             for item in db_items:
                 item_name = item.get('name', '')
-                thumb = item.get('thumbnail_url', '') or ''
+                
+                # categories 조인 결과 파싱
+                cat_data = item.get('categories')
+                cat = cat_data.get('name') if isinstance(cat_data, dict) else (item.get('category') or '기타')
+
+                # product_images 조인 결과 파싱 (is_primary 우선)
+                imgs = item.get('product_images') or []
+                primary_imgs = [i.get('image_url') for i in imgs if i.get('is_primary') and i.get('image_url')]
+                other_imgs = [i.get('image_url') for i in imgs if i.get('image_url')]
+                thumb = primary_imgs[0] if primary_imgs else (other_imgs[0] if other_imgs else '')
+
+                # INITIAL_PRODUCTS에서 fallback 이미지 및 카테고리 매칭
+                init_match = next((p for p in INITIAL_PRODUCTS if p.get('name') == item_name), None)
+                if not thumb and init_match:
+                    thumb = init_match.get('thumbnail_url') or init_match.get('image_url') or ''
+                if (not cat or cat == '기타') and init_match:
+                    cat = init_match.get('category') or cat
+
                 # 샘플 의류나 picsum/unsplash 임시 샘플 상품 제외
                 if any(ex in item_name for ex in excluded_names) or 'picsum.photos' in thumb:
                     continue
 
-                cat = item.get('category') or '기타'
                 if '유니폼' in item_name or cat == '유니폼':
                     sizes = ["S", "M", "L", "XL", "XXL"]
                 elif cat in ['의류', '패션/잡화']:
@@ -103,8 +123,8 @@ def fetch_all_products():
                     "price": price,
                     "original_price": orig_price,
                     "description": item.get('description', ''),
-                    "image_url": thumb or '/static/images/home-uniform.png',
-                    "thumbnail_url": thumb or '/static/images/home-uniform.png',
+                    "image_url": thumb or '/static/images/uniforms/01-home-jersey.png',
+                    "thumbnail_url": thumb or '/static/images/uniforms/01-home-jersey.png',
                     "stock": item.get('stock', 50),
                     "sizes": sizes,
                     "badge": item.get('badge') or 'BEST',
@@ -149,15 +169,120 @@ def index():
     메인 페이지 라우트:
     공식 카탈로그에서 is_featured=true 인기 상품 6개를 조회하여
     index.html에 products 변수로 전달합니다.
+    양산 8경 데이터 및 투표 후보 목록도 함께 전달합니다.
     """
     products = get_featured_products()
-    return render_template('index.html', products=products)
+    all_products = fetch_all_products()
+
+    # 홈 유니폼, 원정 유니폼, 머플러, 응원타월 추천 상품 추출
+    recommended_products = []
+    # 1) 홈 유니폼
+    home_p = next((p for p in all_products if '홈' in p.get('name', '') and '유니폼' in p.get('name', '') and '골키퍼' not in p.get('name', '')), None)
+    # 2) 원정 유니폼
+    away_p = next((p for p in all_products if ('어웨이' in p.get('name', '') or '원정' in p.get('name', '')) and '유니폼' in p.get('name', '') and '골키퍼' not in p.get('name', '')), None)
+    # 3) 머플러
+    muffler_p = next((p for p in all_products if '머플러' in p.get('name', '')), None)
+    # 4) 응원타월
+    towel_p = next((p for p in all_products if '타월' in p.get('name', '') or '응원' in p.get('name', '')), None)
+
+    for item in [home_p, away_p, muffler_p, towel_p]:
+        if item and item not in recommended_products:
+            recommended_products.append(item)
+
+    # 4개가 안 채워졌을 경우 보충
+    if len(recommended_products) < 4:
+        for p in all_products:
+            if p not in recommended_products:
+                recommended_products.append(p)
+            if len(recommended_products) == 4:
+                break
+
+    vote_candidates = get_vote_candidates()
+
+    return render_template(
+        'index.html',
+        products=products,
+        recommended_products=recommended_products,
+        vote_candidates=vote_candidates
+    )
+
+
+@main_bp.route('/club')
+def club():
+    """양산시민축구단 및 양산 8경 소개 페이지 (GET /club)"""
+    attractions_data = [
+        {
+            'id': '01',
+            'name': '통도사',
+            'ko_name': 'TONGDOSA TEMPLE',
+            'image': url_for('static', filename='images/attractions/tongdosa.jpg'),
+            'description': '한국 3대 사찰이자 유네스코 세계문화유산',
+            'tag': '역사/사찰'
+        },
+        {
+            'id': '02',
+            'name': '홍룡폭포',
+            'ko_name': 'HONGRYONG WATERFALL',
+            'image': url_for('static', filename='images/attractions/hongryong-waterfall.jpg'),
+            'description': '천룡이 승천하듯 시원하게 쏟아지는 천연 비경',
+            'tag': '폭포/자연'
+        },
+        {
+            'id': '03',
+            'name': '내원사계곡',
+            'ko_name': 'NAEWONSA VALLEY',
+            'image': url_for('static', filename='images/attractions/naewonsa-valley.jpg'),
+            'description': '맑은 계곡물과 울창한 숲이 어우러진 휴식처',
+            'tag': '계곡/힐링'
+        },
+        {
+            'id': '04',
+            'name': '배내골',
+            'ko_name': 'BAENAEGOL',
+            'image': url_for('static', filename='images/attractions/baenaegol.jpg'),
+            'description': '영남알프스 자락에 안긴 청정 사계절 휴양지',
+            'tag': '휴양림'
+        },
+        {
+            'id': '05',
+            'name': '오봉산 임경대',
+            'ko_name': 'IMGYEONGDAE OBSERVATORY',
+            'image': url_for('static', filename='images/attractions/imgyeongdae.jpg'),
+            'description': '낙동강의 유려한 물굽이를 한눈에 품은 명승지',
+            'tag': '전망대'
+        },
+        {
+            'id': '06',
+            'name': '천태산',
+            'ko_name': 'CHEONTAESAN MOUNTAIN',
+            'image': url_for('static', filename='images/attractions/cheontaesan.jpg'),
+            'description': '기암괴석과 빼어난 자연경관이 살아 숨 쉬는 산악 명소',
+            'tag': '명산/등산'
+        },
+        {
+            'id': '07',
+            'name': '천성산',
+            'ko_name': 'CHEONSONGSAN MOUNTAIN',
+            'image': url_for('static', filename='images/attractions/cheonsongsan.jpg'),
+            'description': '원효대사의 설법과 화엄벌 억새꽃이 일품인 일출 명소',
+            'tag': '일출/억새'
+        },
+        {
+            'id': '08',
+            'name': '대운산자연휴양림',
+            'ko_name': 'DAEUNSAN RECREATION FOREST',
+            'image': url_for('static', filename='images/attractions/daeunsan.jpg'),
+            'description': '사계절 맑은 물과 피톤치드가 가득한 도심 속 힐링 숲',
+            'tag': '휴양/치유'
+        }
+    ]
+    return render_template('club.html', attractions=attractions_data)
 
 
 @main_bp.route('/about')
 def about():
-    """양산시민축구단 및 공식 스토어 브랜드 소개 페이지"""
-    return render_template('about.html')
+    """기존 about 별칭 유지 (하위 호환)"""
+    return club()
 
 
 @main_bp.route('/attractions')
@@ -1027,7 +1152,24 @@ def signup():
         if not user:
             return jsonify({"success": False, "message": "회원가입에 실패했습니다. 다시 시도해 주세요."}), 400
 
+        # profiles 테이블 동기화 확인 및 보장 (트리거 누락 대비)
+        try:
+            admin_client = get_supabase_admin_client()
+            if admin_client:
+                admin_client.table('profiles').upsert({
+                    "id": str(user.id),
+                    "email": email,
+                    "full_name": name,
+                    "phone_number": phone,
+                    "role": "customer",
+                    "grade": "BRONZE"
+                }).execute()
+        except Exception as pe:
+            logger.warning(f"profiles 동기화 예외 (무시 가능): {pe}")
+
         # 세션 정보 저장 (로그인 처리)
+        session['user_id'] = str(user.id)
+        session['email'] = user.email
         session['user'] = {
             "id": str(user.id),
             "email": user.email,
@@ -1045,8 +1187,11 @@ def signup():
     except Exception as e:
         logger.error(f"회원가입 오류: {e}")
         err_msg = str(e)
-        if "User already registered" in err_msg or "already exists" in err_msg:
+        err_msg_lower = err_msg.lower()
+        if "user already registered" in err_msg_lower or "already exists" in err_msg_lower:
             return jsonify({"success": False, "message": "이미 가입된 이메일 주소입니다. 로그인해 주세요."}), 400
+        if "rate limit" in err_msg_lower:
+            return jsonify({"success": False, "message": "요청이 너무 많습니다. 잠시 후(약 1분 뒤) 다시 시도해 주세요."}), 429
         return jsonify({"success": False, "message": f"회원가입 처리 중 오류가 발생했습니다: {err_msg}"}), 400
 
 
@@ -1386,4 +1531,544 @@ def withdraw():
             "success": False,
             "message": "회원 탈퇴 처리 중 오류가 발생했습니다. 고객센터로 문의해 주세요."
         }), 500
+
+
+# ==============================================================================
+# 주문서 작성 및 결제 처리 라우트 (GET/POST /order/checkout)
+# ==============================================================================
+
+@main_bp.route('/api/profile/shipping-default', methods=['GET'])
+def get_shipping_default():
+    """
+    마이페이지(profiles 테이블)에 저장된 회원의 기본 배송지 정보(이름, 휴대폰, 주소)를 반환하는 API
+    """
+    user_info = session.get('user') or {}
+    user_id = user_info.get('id') or session.get('user_id')
+    if not user_id:
+        return jsonify({"success": False, "message": "로그인이 필요합니다."}), 401
+
+    admin_client = get_supabase_admin_client()
+    anon_client = get_supabase_client()
+    db_client = admin_client or anon_client
+
+    profile = {
+        "full_name": user_info.get('name') or '',
+        "phone_number": user_info.get('phone') or '',
+        "shipping_address": ''
+    }
+
+    if db_client:
+        try:
+            res = db_client.table('profiles').select('*').eq('id', user_id).execute()
+            if res.data and len(res.data) > 0:
+                p = res.data[0]
+                profile["full_name"] = p.get('full_name') or profile["full_name"]
+                profile["phone_number"] = p.get('phone_number') or profile["phone_number"]
+                profile["shipping_address"] = p.get('shipping_address') or ''
+        except Exception as e:
+            logger.warning(f"기본 배송지 조회 실패: {e}")
+
+    return jsonify({"success": True, "profile": profile})
+
+
+@main_bp.route('/order/checkout', methods=['GET', 'POST'])
+def order_checkout():
+    """
+    주문서 페이지 및 결제 처리 (GET /order/checkout, POST /order/checkout):
+    - 로그인 필수, 비로그인 시 /login 리다이렉트
+    - 장바구니 비어있으면 /cart 리다이렉트
+    - 장바구니에 품절(stock=0) 아이템이 하나라도 있으면 /cart 로 리다이렉트하고 "품절된 상품이 있어 주문할 수 없습니다" 안내
+    - 장바구니 아이템 목록 표시 (수정 불가)
+    - 배송지 입력 폼: 수령인 이름, 휴대폰 번호(010-0000-0000), 배송 주소(최소 5자 이상), 메모(선택)
+    - 마이페이지에 저장된 기본 배송지 불러오기 버튼 (profiles 테이블 조회)
+    - 결제 금액 요약 (상품금액 + 배송비 = 최종금액)
+    - "결제하기" 버튼 (더미 결제 -> 바로 주문 완료 처리), 클릭 즉시 버튼 비활성화 (중복 클릭 방지)
+    """
+    # 1. 로그인 필수 검증
+    user_info = session.get('user') or {}
+    user_id = user_info.get('id') or session.get('user_id')
+
+    if not user_id:
+        login_url = url_for('auth.login', error='login_required') if 'auth.login' in current_app.view_functions else url_for('main.login', error='login_required')
+        if request.is_json or request.method == 'POST':
+            return jsonify({
+                "success": False,
+                "message": "로그인이 필요합니다.",
+                "redirect_url": login_url
+            }), 401
+        return redirect(login_url)
+
+    admin_client = get_supabase_admin_client()
+    anon_client = get_supabase_client()
+    db_client = admin_client or anon_client
+
+    if not db_client:
+        if request.is_json or request.method == 'POST':
+            return jsonify({"success": False, "message": "데이터베이스 연결에 실패했습니다."}), 500
+        return redirect(url_for('main.cart', error='db_error', msg='데이터베이스에 연결할 수 없습니다.'))
+
+    # 2. 장바구니 조회 및 재고(stock=0) 확인
+    try:
+        cart_response = db_client.table('carts') \
+            .select('id, product_id, option_id, quantity') \
+            .eq('user_id', user_id) \
+            .execute()
+
+        raw_carts = cart_response.data or []
+        
+        # 장바구니 비어있으면 /cart 리다이렉트
+        if not raw_carts:
+            if request.is_json or request.method == 'POST':
+                return jsonify({
+                    "success": False,
+                    "message": "장바구니가 비어 있습니다.",
+                    "redirect_url": url_for('main.cart', error='empty_cart')
+                }), 400
+            return redirect(url_for('main.cart', error='empty_cart'))
+
+        cart_items = []
+        has_sold_out = False
+
+        for cart_item in raw_carts:
+            cart_id = cart_item['id']
+            product_id = cart_item['product_id']
+            option_id = cart_item['option_id']
+            quantity = cart_item['quantity']
+
+            # 상품 정보
+            prod_res = db_client.table('products').select('id, name, price').eq('id', product_id).execute()
+            if not prod_res.data:
+                continue
+            product = prod_res.data[0]
+
+            # 상품 이미지
+            image_url = '/static/images/home-uniform.png'
+            img_res = db_client.table('product_images').select('image_url').eq('product_id', product_id).limit(1).execute()
+            if img_res.data and img_res.data[0].get('image_url'):
+                image_url = img_res.data[0].get('image_url')
+
+            # 옵션 정보 및 재고(stock_quantity) 조회
+            opt_res = db_client.table('product_options').select('id, color, size, stock_quantity').eq('id', option_id).execute()
+            color = '기본'
+            size = 'Free'
+            available_stock = 0
+
+            if opt_res.data:
+                option = opt_res.data[0]
+                color = option.get('color') or '기본'
+                size = option.get('size') or 'Free'
+                try:
+                    available_stock = int(option.get('stock_quantity', 0))
+                except (ValueError, TypeError):
+                    available_stock = 0
+
+            # 장바구니에 품절(stock=0) 아이템이 하나라도 있으면 체크
+            if available_stock <= 0:
+                has_sold_out = True
+
+            try:
+                price = int(float(product.get('price', 0)))
+            except (ValueError, TypeError):
+                price = 0
+
+            subtotal = price * quantity
+
+            cart_items.append({
+                'cart_id': cart_id,
+                'product_id': product_id,
+                'option_id': option_id,
+                'product_name': product.get('name', '양산FC 상품'),
+                'color': color,
+                'size': size,
+                'quantity': quantity,
+                'price': price,
+                'subtotal': subtotal,
+                'image_url': image_url,
+                'available_stock': available_stock,
+                'is_sold_out': available_stock <= 0
+            })
+
+        # 품절(stock=0) 아이템이 하나라도 있으면 /cart 리다이렉트
+        if has_sold_out:
+            msg = "품절된 상품이 있어 주문할 수 없습니다"
+            if request.is_json or request.method == 'POST':
+                return jsonify({
+                    "success": False,
+                    "message": msg,
+                    "redirect_url": url_for('main.cart', error='sold_out', msg=msg)
+                }), 400
+            return redirect(url_for('main.cart', error='sold_out', msg=msg))
+
+        subtotal_sum = sum(item['subtotal'] for item in cart_items)
+        shipping_fee = 0 if subtotal_sum >= 50000 else 3000
+        total_sum = subtotal_sum + shipping_fee
+
+    except Exception as e:
+        logger.error(f"주문서 장바구니 조회 오류: {e}")
+        if request.is_json or request.method == 'POST':
+            return jsonify({"success": False, "message": f"오류가 발생했습니다: {str(e)}"}), 500
+        return redirect(url_for('main.cart', error='system_error', msg=str(e)))
+
+    # POST: 더미 결제 처리 및 바로 주문 완료 처리 (POST /order/checkout은 /order/create로 대체 호출 가능)
+    if request.method == 'POST':
+        return order_create()
+
+    # GET 요청: 마이페이지에 저장된 기본 배송지 정보 (profiles 테이블) 조회
+    profile_data = {
+        "full_name": user_info.get('name') or '',
+        "phone_number": user_info.get('phone') or '',
+        "shipping_address": ''
+    }
+    try:
+        p_res = db_client.table('profiles').select('*').eq('id', user_id).execute()
+        if p_res.data and len(p_res.data) > 0:
+            p = p_res.data[0]
+            profile_data["full_name"] = p.get('full_name') or profile_data["full_name"]
+            profile_data["phone_number"] = p.get('phone_number') or profile_data["phone_number"]
+            profile_data["shipping_address"] = p.get('shipping_address') or ''
+    except Exception as pe:
+        logger.warning(f"주문서 프로필 조회 오류: {pe}")
+
+    return render_template(
+        'order_checkout.html',
+        cart_items=cart_items,
+        subtotal=subtotal_sum,
+        shipping=shipping_fee,
+        total=total_sum,
+        profile=profile_data
+    )
+
+
+@main_bp.route('/order/create', methods=['POST'])
+def order_create():
+    """
+    POST /order/create: 주문 생성 처리
+    처리 순서:
+    1. 장바구니 조회 및 재고 확인 (stock <= 0 또는 수량 초과 체크)
+    2. 배송지 입력값 서버 검증 (이름 필수, 휴대폰 010-0000-0000 패턴, 주소 5자 이상)
+    3. 주문번호(VF-YYYYMMDD-랜덤4자리+밀리초3자리) 생성
+    4. orders 테이블 INSERT (status='paid', paid_at=now())
+    5. order_items INSERT (상품명, 색상, 사이즈, 가격 스냅샷 저장)
+    6. product_options 테이블 재고 차감 (WHERE stock >= 수량 조건부 UPDATE,
+       service_role 키를 사용하여 RLS 우회,
+       실패 시 '방금 재고가 소진되었습니다' 오류와 함께 전체 롤백)
+    7. carts 삭제
+    8. /order/complete/<order_id> 리다이렉트 (JSON 요청 시 redirect_url 반환)
+    """
+    import re
+    import datetime
+    import random
+
+    # 0. 로그인 여부 확인
+    user_info = session.get('user') or {}
+    user_id = user_info.get('id') or session.get('user_id')
+    if not user_id:
+        login_url = url_for('auth.login', error='login_required') if 'auth.login' in current_app.view_functions else url_for('main.login', error='login_required')
+        if request.is_json:
+            return jsonify({
+                "success": False,
+                "message": "로그인이 필요합니다.",
+                "redirect_url": login_url
+            }), 401
+        return redirect(login_url)
+
+    # service_role 키를 사용한 관리자 클라이언트 우선 취득 (RLS 우회)
+    admin_client = get_supabase_admin_client()
+    anon_client = get_supabase_client()
+    db_client = admin_client or anon_client
+
+    if not db_client:
+        return jsonify({"success": False, "message": "데이터베이스 연결에 실패했습니다."}), 500
+
+    # 1. 장바구니 조회 및 재고 확인
+    try:
+        cart_response = db_client.table('carts') \
+            .select('id, product_id, option_id, quantity') \
+            .eq('user_id', user_id) \
+            .execute()
+
+        raw_carts = cart_response.data or []
+        if not raw_carts:
+            msg = "장바구니가 비어 있습니다."
+            cart_redirect = url_for('main.cart', error='empty_cart')
+            if request.is_json:
+                return jsonify({"success": False, "message": msg, "redirect_url": cart_redirect}), 400
+            return redirect(cart_redirect)
+
+        cart_items = []
+        for cart_item in raw_carts:
+            product_id = cart_item['product_id']
+            option_id = cart_item['option_id']
+            quantity = int(cart_item['quantity'])
+
+            # 상품 정보 조회
+            prod_res = db_client.table('products').select('id, name, price').eq('id', product_id).execute()
+            if not prod_res.data:
+                continue
+            product = prod_res.data[0]
+
+            # 옵션 정보 및 재고 조회
+            opt_res = db_client.table('product_options').select('id, color, size, stock, stock_quantity, additional_price').eq('id', option_id).execute()
+            if not opt_res.data:
+                msg = "선택하신 상품 옵션 정보가 존재하지 않습니다."
+                return jsonify({"success": False, "message": msg, "redirect_url": url_for('main.cart', error='invalid_option')}), 400
+
+            option = opt_res.data[0]
+            current_stock = int(option.get('stock') if option.get('stock') is not None else option.get('stock_quantity', 0))
+
+            # 재고 확인: 품절이거나 요청 수량보다 부족한 경우
+            if current_stock <= 0 or current_stock < quantity:
+                msg = f"'{product.get('name')}' 상품의 재고가 부족하거나 품절되었습니다."
+                return jsonify({"success": False, "message": msg, "redirect_url": url_for('main.cart', error='sold_out', msg=msg)}), 400
+
+            price = int(float(product.get('price', 0))) + int(float(option.get('additional_price', 0)))
+            subtotal = price * quantity
+
+            cart_items.append({
+                'cart_id': cart_item['id'],
+                'product_id': product_id,
+                'option_id': option_id,
+                'product_name': product.get('name', '양산FC 상품'),
+                'color': option.get('color') or '기본',
+                'size': option.get('size') or 'Free',
+                'quantity': quantity,
+                'unit_price': price,
+                'subtotal': subtotal,
+                'current_stock': current_stock
+            })
+
+        if not cart_items:
+            return jsonify({"success": False, "message": "유효한 장바구니 상품이 없습니다.", "redirect_url": url_for('main.cart')}), 400
+
+        subtotal_sum = sum(item['subtotal'] for item in cart_items)
+        shipping_fee = 0 if subtotal_sum >= 50000 else 3000
+        total_sum = subtotal_sum + shipping_fee
+
+    except Exception as e:
+        logger.error(f"장바구니 조회 및 재고 확인 중 오류: {e}")
+        return jsonify({"success": False, "message": f"장바구니 조회 중 오류가 발생했습니다: {str(e)}"}), 500
+
+    # 2. 배송지 입력값 서버 검증
+    data = request.get_json(silent=True) or request.form.to_dict()
+    recipient_name = (data.get('recipient_name') or '').strip()
+    recipient_phone = (data.get('recipient_phone') or '').strip()
+    shipping_address = (data.get('shipping_address') or '').strip()
+    shipping_memo = (data.get('shipping_memo') or '').strip()
+
+    if not recipient_name:
+        return jsonify({"success": False, "message": "수령인 이름을 입력해주세요."}), 400
+
+    phone_pattern = r'^010-\d{4}-\d{4}$'
+    if not re.match(phone_pattern, recipient_phone):
+        return jsonify({"success": False, "message": "휴대폰 번호는 010-0000-0000 패턴이어야 합니다."}), 400
+
+    if len(shipping_address) < 5:
+        return jsonify({"success": False, "message": "배송 주소는 최소 5자 이상이어야 합니다."}), 400
+
+    # 3. 주문번호(VF-YYYYMMDD-랜덤4자리+밀리초3자리) 생성
+    now = datetime.datetime.now()
+    date_str = now.strftime('%Y%m%d')
+    rand_4 = ''.join(random.choices('0123456789', k=4))
+    ms_3 = f"{int(now.microsecond / 1000):03d}"
+    order_number = f"VF-{date_str}-{rand_4}{ms_3}"
+
+    # 주문 생성 및 트랜잭션 롤백 관리
+    created_order_id = None
+    deducted_options = []  # [(option_id, qty, original_stock)] 재고 복구용 스택
+
+    try:
+        # 4. orders 테이블 INSERT (status='paid')
+        order_insert_payload = {
+            "order_number": order_number,
+            "user_id": user_id,
+            "total_amount": float(subtotal_sum),
+            "discount_amount": 0.0,
+            "shipping_fee": float(shipping_fee),
+            "final_amount": float(total_sum),
+            "status": "paid",
+            "recipient_name": recipient_name,
+            "recipient_phone": recipient_phone,
+            "shipping_address": shipping_address,
+            "shipping_memo": shipping_memo
+        }
+
+        # DB 스키마에 paid_at 컬럼이 존재할 경우를 대비하여 시도
+        try:
+            order_res = db_client.table('orders').insert({
+                **order_insert_payload,
+                "paid_at": now.isoformat()
+            }).execute()
+        except Exception as pe:
+            logger.info(f"paid_at 컬럼 미존재로 기본 페이로드로 저장 진행: {pe}")
+            order_res = db_client.table('orders').insert(order_insert_payload).execute()
+
+        if not order_res.data or len(order_res.data) == 0:
+            raise Exception("주문 기본 정보를 데이터베이스에 저장하지 못했습니다.")
+
+        created_order_id = order_res.data[0]['id']
+
+        # 5. order_items INSERT (상품명, 색상, 사이즈, 가격 스냅샷 저장)
+        items_payload = []
+        for item in cart_items:
+            opt_snapshot = f"{item['color']} / {item['size']}" if item['color'] != '기본' else item['size']
+            items_payload.append({
+                "order_id": created_order_id,
+                "product_id": item['product_id'],
+                "option_id": item['option_id'],
+                "product_name": item['product_name'],
+                "option_info": opt_snapshot,
+                "unit_price": float(item['unit_price']),
+                "quantity": int(item['quantity']),
+                "subtotal": float(item['subtotal'])
+            })
+
+        order_items_res = db_client.table('order_items').insert(items_payload).execute()
+        if not order_items_res.data:
+            raise Exception("주문 상세 품목 저장에 실패했습니다.")
+
+        # 6. product_options 테이블 재고 차감 (WHERE stock >= 수량 조건부 UPDATE, RLS 우회)
+        # service_role 클라이언트 사용
+        update_client = admin_client or db_client
+
+        for item in cart_items:
+            opt_id = item['option_id']
+            qty = item['quantity']
+
+            # 최신 재고 다시 확인 및 조건부 UPDATE
+            # WHERE id = opt_id AND stock >= qty
+            check_opt = update_client.table('product_options').select('id, stock, stock_quantity').eq('id', opt_id).execute()
+            if not check_opt.data:
+                raise Exception("방금 재고가 소진되었습니다")
+
+            current_stock_val = check_opt.data[0].get('stock')
+            if current_stock_val is None:
+                current_stock_val = check_opt.data[0].get('stock_quantity', 0)
+            current_stock_val = int(current_stock_val)
+
+            if current_stock_val < qty:
+                raise Exception("방금 재고가 소진되었습니다")
+
+            new_stock = current_stock_val - qty
+            update_data = {}
+            if 'stock' in check_opt.data[0]:
+                update_data['stock'] = new_stock
+            if 'stock_quantity' in check_opt.data[0]:
+                update_data['stock_quantity'] = new_stock
+
+            # 조건부 업데이트 실행 (gte('stock', qty))
+            update_query = update_client.table('product_options').update(update_data).eq('id', opt_id)
+            if 'stock' in check_opt.data[0]:
+                update_query = update_query.gte('stock', qty)
+            else:
+                update_query = update_query.gte('stock_quantity', qty)
+
+            update_res = update_query.execute()
+
+            if not update_res.data or len(update_res.data) == 0:
+                raise Exception("방금 재고가 소진되었습니다")
+
+            deducted_options.append((opt_id, qty))
+
+        # 7. carts 삭제
+        db_client.table('carts').delete().eq('user_id', user_id).execute()
+
+        # 사용자 프로필 배송지 정보 동기화 (편의 기능)
+        try:
+            db_client.table('profiles').update({
+                "phone_number": recipient_phone,
+                "shipping_address": shipping_address,
+                "updated_at": "now()"
+            }).eq('id', user_id).execute()
+        except Exception:
+            pass
+
+        # 8. /order/complete/<order_id> 리다이렉트
+        complete_url = url_for('main.order_complete', order_id=created_order_id)
+
+        if request.is_json:
+            return jsonify({
+                "success": True,
+                "order_id": created_order_id,
+                "order_number": order_number,
+                "total_amount": total_sum,
+                "total_amount_formatted": f"{total_sum:,}원",
+                "redirect_url": complete_url,
+                "message": "주문이 완료되었습니다."
+            })
+        return redirect(complete_url)
+
+    except Exception as e:
+        err_msg = str(e)
+        logger.error(f"주문 생성 중 오류 발생: {err_msg}")
+
+        # 전체 롤백 처리
+        # 1) 이미 차감한 product_options 재고 원복
+        if deducted_options:
+            rollback_client = admin_client or db_client
+            for opt_id, qty in deducted_options:
+                try:
+                    cur = rollback_client.table('product_options').select('id, stock, stock_quantity').eq('id', opt_id).execute()
+                    if cur.data:
+                        revert_data = {}
+                        if 'stock' in cur.data[0] and cur.data[0]['stock'] is not None:
+                            revert_data['stock'] = int(cur.data[0]['stock']) + qty
+                        if 'stock_quantity' in cur.data[0] and cur.data[0]['stock_quantity'] is not None:
+                            revert_data['stock_quantity'] = int(cur.data[0]['stock_quantity']) + qty
+                        rollback_client.table('product_options').update(revert_data).eq('id', opt_id).execute()
+                except Exception as rbe:
+                    logger.critical(f"재고 롤백 실패 (opt_id: {opt_id}): {rbe}")
+
+        # 2) 생성된 orders 레코드 삭제 (ON DELETE CASCADE로 order_items도 자동 정리)
+        if created_order_id:
+            try:
+                db_client.table('orders').delete().eq('id', created_order_id).execute()
+            except Exception as rbe:
+                logger.critical(f"주문 롤백 삭제 실패 (order_id: {created_order_id}): {rbe}")
+
+        user_friendly_msg = "방금 재고가 소진되었습니다" if "방금 재고가 소진되었습니다" in err_msg else f"주문 처리 중 오류가 발생했습니다: {err_msg}"
+        if request.is_json:
+            return jsonify({
+                "success": False,
+                "message": user_friendly_msg,
+                "redirect_url": url_for('main.cart', error='sold_out', msg=user_friendly_msg) if "재고가 소진되었습니다" in user_friendly_msg else None
+            }), 400
+
+        return redirect(url_for('main.cart', error='order_failed', msg=user_friendly_msg))
+
+
+@main_bp.route('/order/complete/<order_id>', methods=['GET'])
+def order_complete(order_id):
+    """
+    주문 완료 페이지:
+    주문 번호, 배송지 정보, 결제 금액, 주문 상품 스냅샷을 표시합니다.
+    """
+    user_info = session.get('user') or {}
+    user_id = user_info.get('id') or session.get('user_id')
+    if not user_id:
+        return redirect(url_for('auth.login', error='login_required') if 'auth.login' in current_app.view_functions else url_for('main.login'))
+
+    admin_client = get_supabase_admin_client()
+    anon_client = get_supabase_client()
+    db_client = admin_client or anon_client
+
+    if not db_client:
+        return redirect(url_for('main.index'))
+
+    try:
+        # 본인 주문인지 확인
+        order_res = db_client.table('orders').select('*').eq('id', order_id).eq('user_id', user_id).execute()
+        if not order_res.data or len(order_res.data) == 0:
+            return redirect(url_for('main.mypage'))
+
+        order = order_res.data[0]
+
+        # 주문 상품 조회
+        items_res = db_client.table('order_items').select('*').eq('order_id', order_id).execute()
+        order_items = items_res.data or []
+
+        return render_template('order_complete.html', order=order, order_items=order_items)
+
+    except Exception as e:
+        logger.error(f"주문 완료 페이지 조회 오류: {e}")
+        return redirect(url_for('main.mypage'))
 

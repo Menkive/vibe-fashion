@@ -56,6 +56,12 @@ h1, h2, h3, h4, h5, h6, .h1, .h2, .h3, .h4, .h5, .h6 {
 }
 
 /* 3. 헤더 네비게이션 (K리그 구단 공식 MD몰 헤더) */
+/* Tailwind CSS의 .collapse { visibility: collapse }가 Bootstrap의 .collapse와 충돌하는 문제 해결 */
+.navbar-collapse.collapse,
+.collapse.show {
+    visibility: visible !important;
+}
+
 .navbar.bg-dark {
     background-color: var(--color-primary) !important;
     border-bottom: 2px solid var(--color-secondary);

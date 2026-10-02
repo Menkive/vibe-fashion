@@ -10,10 +10,21 @@
     </div>
     <h2 class="section-title mb-4">장바구니</h2>
 
-    {% if error %}
+    {% set query_error = request.args.get('error') %}
+    {% set query_msg = request.args.get('msg') %}
+    {% if query_msg or query_error or error %}
     <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
-        <i class="bi bi-exclamation-triangle me-2"></i>
-        <strong>오류!</strong> {{ error }}
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong>안내:</strong> 
+        {% if query_msg %}
+            {{ query_msg }}
+        {% elif query_error == 'empty_cart' %}
+            장바구니가 비어 있어 주문서를 작성할 수 없습니다. 상품을 먼저 담아주세요.
+        {% elif query_error == 'sold_out' %}
+            품절된 상품이 있어 주문할 수 없습니다
+        {% else %}
+            {{ error or query_error }}
+        {% endif %}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     </div>
     {% endif %}
@@ -297,7 +308,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 주문 버튼
     if (checkoutBtn && !checkoutBtn.disabled) {
         checkoutBtn.addEventListener('click', () => {
-            alert('주문 기능은 현재 개발 중입니다.');
+            window.location.href = "{{ url_for('main.order_checkout') }}";
         });
     }
 

@@ -28,9 +28,9 @@
                     </a>
                 </div>
             </div>
-            <!-- 오른쪽: 원형 공식 엠블럼 (클릭 시 양산 8경 소개 페이지로 이동) -->
+            <!-- 오른쪽: 원형 공식 엠블럼 (클릭 시 구단 소개 페이지로 이동) -->
             <div class="col-lg-5 col-xl-5 text-center order-1 order-lg-2 mb-4 mb-lg-0 hero-emblem-col">
-                <a href="{{ url_for('main.attractions') }}" class="hero-emblem-wrapper" title="양산 8경 보기">
+                <a href="{{ url_for('main.club') }}" class="hero-emblem-wrapper" title="양산시민축구단 소개 보기">
                     <img src="{{ url_for('static', filename='images/yangsan-fc-emblem.png') }}"
                          alt="양산시민축구단 공식 엠블럼"
                          class="hero-emblem-img img-fluid"
@@ -201,24 +201,318 @@
     </div>
     {% endif %}
 
-    <!-- 4. 팬 참여 이벤트 섹션 (유니폼 디자인 투표 홍보) -->
-    <div id="membership" class="fan-membership-banner my-5 rounded-4 p-4 p-lg-5" style="background: linear-gradient(135deg, #0A2342 0%, #06162a 100%); border-left: 6px solid var(--color-secondary);">
-        <div class="row align-items-center">
-            <div class="col-lg-8">
-                <span class="badge mb-2 px-3 py-2 fw-bold" style="background-color: var(--color-secondary); color: #0A2342;">
-                    <i class="bi bi-patch-check-fill me-1"></i> FAN EVENT
-                </span>
-                <h3 class="fw-bold mb-2 text-white">2027 시즌 유니폼 디자인 팬 투표 개시!</h3>
-                <p class="text-white-50 mb-3 mb-lg-0">
-                    팬 여러분의 손으로 직접 결정하는 다음 시즌 공식 유니폼! 3가지 디자인 시안(Design A, B, C) 중 마음에 드는 디자인에 투표하고 구단 역사에 동참하세요.
+</section>
+
+<!-- ==========================================
+     [추천 상품] (홈 유니폼, 원정 유니폼, 머플러, 응원타월)
+     ========================================== -->
+<section class="py-16 bg-white relative" id="recommended-products">
+    <div class="container mx-auto px-4">
+        <!-- 섹션 타이틀 -->
+        <div class="flex flex-col md:flex-row md:items-end justify-between mb-10 pb-4 border-b border-slate-200">
+            <div>
+                <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 text-amber-700 text-xs font-bold tracking-wider uppercase mb-2">
+                    <i class="bi bi-star-fill text-amber-500"></i> Editor's Pick
+                </div>
+                <h2 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
+                    추천 상품
+                </h2>
+                <p class="text-slate-500 text-sm md:text-base mt-1">
+                    경기장 응원 필수 아이템! 양산FC 서포터즈가 가장 사랑하는 4가지 머스트헤브 컬렉션
                 </p>
             </div>
-            <div class="col-lg-4 text-lg-end">
-                <a href="{{ url_for('main.vote_page') }}" class="btn btn-cta-primary px-4 py-2 text-decoration-none">
-                    <i class="bi bi-hand-thumbs-up-fill me-1"></i> 지금 투표 참여하기
+            <a href="{{ url_for('main.product_list') }}" class="mt-4 md:mt-0 inline-flex items-center gap-1 text-sm font-bold text-brandNavy hover:text-amber-600 transition-colors text-decoration-none">
+                전체 스토어 상품 보기 <i class="bi bi-arrow-right"></i>
+            </a>
+        </div>
+
+        <!-- 4대 추천 상품 카드 그리드 (모바일 1열, 태블릿 2열, PC 4열) -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {% for item in recommended_products %}
+            <div class="group bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm hover:shadow-xl hover:border-amber-400 transition-all duration-300 flex flex-col">
+                <!-- 상품 이미지 영역 -->
+                <a href="{{ url_for('main.product_detail', product_id=item.id) }}" class="block relative bg-slate-900/95 aspect-square overflow-hidden p-6 text-center text-decoration-none">
+                    <img src="{{ item.thumbnail_url or item.image_url }}"
+                         alt="{{ item.name }}"
+                         class="w-full h-full object-contain group-hover:scale-105 transition-transform duration-300"
+                         loading="lazy">
+                    
+                    <!-- 뱃지 라벨 -->
+                    <span class="absolute top-3 left-3 px-2.5 py-1 rounded-md bg-amber-400 text-slate-950 font-black text-[11px] uppercase tracking-wider shadow">
+                        {{ item.badge or 'MD PICK' }}
+                    </span>
+                    <span class="absolute top-3 right-3 px-2 py-0.5 rounded-full bg-slate-800/90 text-white text-[10px] font-semibold border border-slate-700">
+                        {{ item.category }}
+                    </span>
                 </a>
+
+                <!-- 상품 정보 영역 -->
+                <div class="p-5 flex flex-col flex-grow">
+                    <div class="text-xs font-semibold text-slate-400 mb-1">OFFICIAL GOODS</div>
+                    <h3 class="text-base font-bold text-slate-900 group-hover:text-brandNavy transition-colors mb-2 line-clamp-1">
+                        <a href="{{ url_for('main.product_detail', product_id=item.id) }}" class="text-decoration-none text-reset">
+                            {{ item.name }}
+                        </a>
+                    </h3>
+                    <p class="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-4 flex-grow">
+                        {{ item.description }}
+                    </p>
+
+                    <!-- 가격 & 버튼 -->
+                    <div class="pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <div>
+                            {% if item.original_price %}
+                            <div class="text-[11px] text-slate-400 line-through">
+                                {{ item.original_price|currency }}
+                            </div>
+                            {% endif %}
+                            <div class="text-lg font-black text-slate-900">
+                                {{ item.price|currency }}
+                            </div>
+                        </div>
+                        <a href="{{ url_for('main.product_detail', product_id=item.id) }}" class="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-brandNavy hover:bg-amber-500 text-white hover:text-slate-950 transition-colors shadow-sm text-decoration-none" title="상세보기">
+                            <i class="bi bi-cart-plus text-base"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<!-- ==========================================
+     [섹션 3] 팬존 (Fan Zone)
+     - 응원 메시지
+     - 유니폼 디자인 투표
+     - 베스트 팬 포토
+     ========================================== -->
+<section class="py-16 bg-slate-900 text-white relative overflow-hidden" id="fanzone">
+    <!-- 배경 글로우 -->
+    <div class="absolute -top-32 -left-32 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-32 -right-32 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div class="container mx-auto px-4 relative z-10">
+        <!-- 섹션 타이틀 -->
+        <div class="text-center max-w-3xl mx-auto mb-14">
+            <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-amber-500/15 border border-amber-500/30 text-amber-400 text-xs font-bold tracking-widest uppercase mb-3">
+                <i class="bi bi-heart-fill text-amber-400"></i> Yangsan FC Fan Zone
+            </div>
+            <h2 class="text-3xl md:text-4xl lg:text-5xl font-black text-white tracking-tight mb-3">
+                팬존 <span class="text-amber-400">(FAN ZONE)</span>
+            </h2>
+            <div class="w-16 h-1 bg-amber-400 mx-auto rounded-full mb-4"></div>
+            <p class="text-slate-300 text-sm md:text-base">
+                푸른 함성으로 하나 되는 우리들의 공간, 팬 여러분의 목소리와 열정을 나눕니다.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- 1) 응원 메시지 (Cheering Board) -->
+            <div class="bg-slate-800/90 rounded-2xl p-6 md:p-7 border border-slate-700/80 shadow-xl flex flex-col">
+                <div class="flex items-center justify-between mb-5 pb-3 border-b border-slate-700">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-xl">
+                            <i class="bi bi-chat-heart-fill"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white mb-0">응원 메시지</h3>
+                            <span class="text-xs text-slate-400">양산FC 선수단에 전하는 한마디</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] px-2 py-1 rounded bg-blue-900/60 text-blue-300 font-semibold">LIVE</span>
+                </div>
+
+                <!-- 메시지 리스트 -->
+                <div class="space-y-3.5 mb-5 flex-grow">
+                    <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-700/60">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="font-bold text-amber-400 text-xs">물금읍 푸른전사</span>
+                            <span class="text-[10px] text-slate-400">10분 전</span>
+                        </div>
+                        <p class="text-xs text-slate-200 leading-relaxed mb-0">
+                            "2028년 첫 경기 종합운동장 직관 무조건 갑니다! 양산의 자부심 파이팅!"
+                        </p>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-700/60">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="font-bold text-amber-400 text-xs">양산토박이77</span>
+                            <span class="text-[10px] text-slate-400">35분 전</span>
+                        </div>
+                        <p class="text-xs text-slate-200 leading-relaxed mb-0">
+                            "홈 유니폼 실물 너무 예뻐요! 머플러 두르고 개막전까지 기다립니다 🔥"
+                        </p>
+                    </div>
+
+                    <div class="p-3.5 rounded-xl bg-slate-900/80 border border-slate-700/60">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <span class="font-bold text-amber-400 text-xs">웅상축구꿈나무</span>
+                            <span class="text-[10px] text-slate-400">1시간 전</span>
+                        </div>
+                        <p class="text-xs text-slate-200 leading-relaxed mb-0">
+                            "우리 도시에도 드디어 멋진 프로 축구단이 생기다니 꿈만 같아요!"
+                        </p>
+                    </div>
+                </div>
+
+                <!-- 응원 메시지 남기기 입력창 -->
+                <div class="pt-4 border-t border-slate-700">
+                    <div class="flex gap-2">
+                        <input type="text"
+                               id="fan-message-input"
+                               placeholder="선수단에 힘이 되는 응원을 남겨주세요!"
+                               class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-amber-400">
+                        <button type="button"
+                                onclick="submitFanMessage()"
+                                class="px-4 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs whitespace-nowrap transition-colors">
+                            등록
+                        </button>
+                    </div>
+                    <div id="fan-message-notice" class="text-[11px] text-emerald-400 mt-2 hidden text-center font-medium">
+                        응원 메시지가 등록되었습니다! 감사합니다.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2) 유니폼 디자인 투표 (Kit Vote Highlight) -->
+            <div class="bg-gradient-to-b from-slate-800 to-brandNavy rounded-2xl p-6 md:p-7 border border-amber-500/40 shadow-xl flex flex-col relative overflow-hidden">
+                <!-- 상단 뱃지 -->
+                <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-700/80">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-xl">
+                            <i class="bi bi-patch-check-fill"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white mb-0">유니폼 디자인 투표</h3>
+                            <span class="text-xs text-amber-300/80">팬이 직접 만드는 2027 킷</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] px-2.5 py-1 rounded-full bg-amber-400 text-slate-950 font-black">진행 중</span>
+                </div>
+
+                <p class="text-xs text-slate-300 leading-relaxed mb-4">
+                    양산의 역사와 자연을 담은 6가지 공식 유니폼 후보 중 가장 마음에 드는 디자인을 선택해주세요!
+                </p>
+
+                <!-- 후보 미리보기 3종 썸네일 그리드 -->
+                <div class="grid grid-cols-3 gap-2.5 mb-5">
+                    {% for c in vote_candidates[:3] %}
+                    <div class="bg-slate-900/90 rounded-xl p-2 text-center border border-slate-700 hover:border-amber-400 transition-colors">
+                        <div class="h-20 flex items-center justify-center overflow-hidden mb-1">
+                            <img src="{{ c.image_url }}" alt="{{ c.name }}" class="max-h-full max-w-full object-contain">
+                        </div>
+                        <div class="text-[11px] font-bold text-white truncate">{{ c.name }}</div>
+                        <div class="text-[10px] text-amber-400 font-semibold">{{ c.votes }}표 ({{ c.percentage }}%)</div>
+                    </div>
+                    {% endfor %}
+                </div>
+
+                <!-- 투표 CTA 버튼 -->
+                <div class="mt-auto pt-4 border-t border-slate-700/80">
+                    <a href="{{ url_for('main.vote_page') }}" class="w-full py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs md:text-sm text-center flex items-center justify-center gap-2 shadow-lg shadow-amber-500/20 transition-all text-decoration-none">
+                        <i class="bi bi-hand-thumbs-up-fill"></i> 2027 유니폼 투표 참여하기
+                    </a>
+                    <div class="text-center text-[11px] text-slate-400 mt-2">
+                        현재 총 <strong class="text-amber-400">{{ vote_candidates|map(attribute='votes')|sum }}</strong>명의 팬이 투표했습니다.
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3) 베스트 팬 포토 (Best Fan Photos) -->
+            <div class="bg-slate-800/90 rounded-2xl p-6 md:p-7 border border-slate-700/80 shadow-xl flex flex-col">
+                <div class="flex items-center justify-between mb-5 pb-3 border-b border-slate-700">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-pink-500/20 text-pink-400 flex items-center justify-center text-xl">
+                            <i class="bi bi-camera-fill"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-lg font-bold text-white mb-0">베스트 팬 포토</h3>
+                            <span class="text-xs text-slate-400">#양산시민축구단 #양산FC</span>
+                        </div>
+                    </div>
+                    <span class="text-[11px] px-2 py-1 rounded bg-slate-700 text-slate-300 font-semibold">이번 주 갤러리</span>
+                </div>
+
+                <!-- 팬 포토 4분할 그리드 -->
+                <div class="grid grid-cols-2 gap-3 mb-5 flex-grow">
+                    <!-- 포토 1 (머플러 인증샷) -->
+                    <div class="group relative rounded-xl overflow-hidden bg-slate-900 border border-slate-700 aspect-square">
+                        <img src="{{ url_for('static', filename='images/yangsan-fc-muffler.png') }}"
+                             alt="팬 머플러 인증샷"
+                             class="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-2">
+                            <span class="text-[10px] text-white font-medium flex items-center gap-1">
+                                <i class="bi bi-instagram text-pink-400"></i> @blue_yangsan
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 포토 2 (볼캡 코디샷) -->
+                    <div class="group relative rounded-xl overflow-hidden bg-slate-900 border border-slate-700 aspect-square">
+                        <img src="{{ url_for('static', filename='images/yangsan-fc-ballcap.png') }}"
+                             alt="팬 볼캡 코디샷"
+                             class="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-2">
+                            <span class="text-[10px] text-white font-medium flex items-center gap-1">
+                                <i class="bi bi-instagram text-pink-400"></i> @fc_supporter_ys
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 포토 3 (홈 킷 경기장 착용샷) -->
+                    <div class="group relative rounded-xl overflow-hidden bg-slate-900 border border-slate-700 aspect-square">
+                        <img src="{{ url_for('static', filename='images/uniforms/01-home-jersey.png') }}"
+                             alt="홈 유니폼 착용샷"
+                             class="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-2">
+                            <span class="text-[10px] text-white font-medium flex items-center gap-1">
+                                <i class="bi bi-instagram text-pink-400"></i> @yangsan_k3
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 포토 4 (토트백 일상샷) -->
+                    <div class="group relative rounded-xl overflow-hidden bg-slate-900 border border-slate-700 aspect-square">
+                        <img src="{{ url_for('static', filename='images/yangsan-fc-tote-bag.png') }}"
+                             alt="토트백 일상샷"
+                             class="w-full h-full object-contain p-2 group-hover:scale-105 transition-transform duration-300">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent flex items-end p-2">
+                            <span class="text-[10px] text-white font-medium flex items-center gap-1">
+                                <i class="bi bi-instagram text-pink-400"></i> @yangsan_daily
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 하단 해시태그 안내 -->
+                <div class="pt-4 border-t border-slate-700 text-center">
+                    <p class="text-[11px] text-slate-400 mb-2">
+                        인스타그램에 <strong>#양산시민축구단</strong> 태그로 사진을 올려주시면 공식 팬존에 선정됩니다!
+                    </p>
+                    <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs text-pink-400 hover:text-pink-300 font-bold text-decoration-none">
+                        <i class="bi bi-instagram"></i> 인스타그램에서 더보기
+                    </a>
+                </div>
             </div>
         </div>
     </div>
 </section>
+
+<!-- 팬 메시지 클라이언트 스크립트 -->
+<script>
+function submitFanMessage() {
+    const input = document.getElementById('fan-message-input');
+    const notice = document.getElementById('fan-message-notice');
+    if (!input || !input.value.trim()) {
+        alert('응원 메시지를 입력해주세요!');
+        return;
+    }
+    notice.classList.remove('hidden');
+    input.value = '';
+    setTimeout(() => {
+        notice.classList.add('hidden');
+    }, 4000);
+}
+</script>
 {% endblock %}
