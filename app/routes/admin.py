@@ -26,42 +26,51 @@ def get_db():
 def is_admin_user():
     """
     현재 로그인된 사용자가 관리자인지 확인:
-    1. session['user']가 없으면 False
-    2. role이 'admin'이거나 개발/테스트 모드(로그인한 모든 회원)인 경우 True
-    3. profiles 테이블에서 role 조회
+    1. session에 로그인 정보가 없으면 False
+    2. session['user']['role']이 'admin'이면 True
+    3. 세션 정보에 role이 불확실한 경우, Supabase profiles 테이블에서 실제 'role' 조회
+    4. role == 'admin'인 경우에만 True 반환 (그 외 customer 등 일반 회원은 절대 접근 불가)
     """
-    if 'user' not in session and 'user_id' not in session:
+    user_id = session.get('user_id') or session.get('user', {}).get('id')
+    if not user_id:
         return False
     
-    user_id = session.get('user_id') or session.get('user', {}).get('id')
-    user_role = session.get('user', {}).get('role')
-    if user_role == 'admin':
+    # 세션 캐시 확인
+    user_data = session.get('user', {})
+    if isinstance(user_data, dict) and user_data.get('role') == 'admin':
         return True
 
-    # 개발 및 테스트 모드: 로그인한 사용자는 기본적으로 관리자 페이지 접근 허용
-    # 실제 profiles 테이블에서 role이 'admin'인지도 확인
+    # DB profiles 테이블에서 실시간 role 검증
     db = get_db()
     if db and user_id:
         try:
             res = db.table('profiles').select('role').eq('id', user_id).execute()
             if res.data and res.data[0].get('role') == 'admin':
+                # 세션에도 role 동기화
+                if isinstance(session.get('user'), dict):
+                    session['user']['role'] = 'admin'
+                    session.modified = True
                 return True
         except Exception as e:
-            logger.warning(f"관리자 권한 확인 중 알림: {e}")
+            logger.warning(f"관리자 권한 확인 중 오류: {e}")
 
-    # 테스트 모드 옵션: 로그인되어 있으면 관리자 권한 허용
-    return True
+    return False
 
 
 def admin_required(f):
-    """관리자 접근 제한 데코레이터"""
+    """
+    관리자 접근 제한 데코레이터:
+    - 로그인하지 않은 사용자가 /admin 직접 입력 시 -> 로그인 페이지로 리다이렉트
+    - 로그인했으나 관리자 권한(role != 'admin')이 없는 일반 사용자가 /admin 직접 입력 시 -> 접근 거부 플래시 메시지와 함께 메인 페이지로 차단
+    """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'user' not in session and 'user_id' not in session:
-            flash('관리자 페이지에 접근하려면 먼저 로그인해 주세요.', 'warning')
+        user_id = session.get('user_id') or session.get('user', {}).get('id')
+        if not user_id:
+            flash('관리자 페이지는 로그인이 필요합니다.', 'warning')
             return redirect(url_for('auth.login', next=request.path))
         if not is_admin_user():
-            flash('관리자 권한이 필요합니다.', 'danger')
+            flash('관리자 권한이 없습니다. 접근이 거부되었습니다.', 'danger')
             return redirect(url_for('main.index'))
         return f(*args, **kwargs)
     return decorated_function

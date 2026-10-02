@@ -92,13 +92,25 @@ def login():
         user_metadata = getattr(user, 'user_metadata', {}) or {}
         user_name = user_metadata.get('full_name') or user_metadata.get('name') or email.split('@')[0]
 
+        # DB profiles 테이블에서 role 조회
+        role = 'customer'
+        admin_client = get_supabase_admin_client()
+        if admin_client:
+            try:
+                prof_res = admin_client.table('profiles').select('role').eq('id', str(user.id)).execute()
+                if prof_res.data and prof_res.data[0].get('role'):
+                    role = prof_res.data[0].get('role')
+            except Exception as pe:
+                logger.warning(f"로그인 시 profile role 조회 오류: {pe}")
+
         session['user_id'] = str(user.id)
         session['email'] = user.email
         session['user'] = {
             "id": str(user.id),
             "email": user.email,
             "name": user_name,
-            "phone": user_metadata.get('phone', '')
+            "phone": user_metadata.get('phone', ''),
+            "role": role
         }
         if auth_res.session:
             session['access_token'] = auth_res.session.access_token
