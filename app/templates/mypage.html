@@ -234,11 +234,11 @@
                                                         <div class="text-secondary" style="font-size: 0.75rem;">{{ o.created_at[:16].replace('T', ' ') if o.created_at else '-' }}</div>
                                                     </td>
                                                     <td>
-                                                        {% if o.items %}
-                                                            <div class="fw-semibold text-dark">{{ o.items[0].product_name }}</div>
-                                                            <div class="text-secondary" style="font-size: 0.75rem;">{{ o.items[0].option_info }}</div>
-                                                            {% if o.items|length > 1 %}
-                                                                <div class="text-muted" style="font-size: 0.75rem;">외 {{ o.items|length - 1 }}개 품목</div>
+                                                        {% if o['items'] %}
+                                                            <div class="fw-semibold text-dark">{{ o['items'][0].product_name }}</div>
+                                                            <div class="text-secondary" style="font-size: 0.75rem;">{{ o['items'][0].option_info }}</div>
+                                                            {% if o['items']|length > 1 %}
+                                                                <div class="text-muted" style="font-size: 0.75rem;">외 {{ o['items']|length - 1 }}개 품목</div>
                                                             {% endif %}
                                                         {% else %}
                                                             <span class="text-secondary">주문 상품 정보</span>

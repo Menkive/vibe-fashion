@@ -1,0 +1,69 @@
+{% extends "admin/base.html" %}
+
+{% block title %}회원 상세 | 양산시민축구단 관리자 센터{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold mb-1">회원 주문 내역</h3>
+        <p class="text-secondary small mb-0">개인정보는 회원 확인에 필요한 항목만 표시합니다.</p>
+    </div>
+    <a href="{{ url_for('admin.users') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left me-1"></i>회원 목록
+    </a>
+</div>
+
+<div class="admin-card p-4 mb-4">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <div class="small text-secondary">회원명</div>
+            <div class="fw-semibold">{{ member.full_name or '고객' }}</div>
+        </div>
+        <div class="col-md-5">
+            <div class="small text-secondary">이메일</div>
+            <div class="fw-semibold">{{ member.email or '-' }}</div>
+        </div>
+        <div class="col-md-3">
+            <div class="small text-secondary">가입일</div>
+            <div class="fw-semibold">{{ member.created_at[:10] if member.created_at else '-' }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="admin-card">
+    <div class="admin-card-header">주문 내역 <span class="text-secondary">{{ orders|length }}건</span></div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light small text-secondary">
+                <tr>
+                    <th class="ps-3">주문번호 / 일시</th>
+                    <th>주문 상품</th>
+                    <th class="text-center">상태</th>
+                    <th class="text-end pe-3">결제 금액</th>
+                </tr>
+            </thead>
+            <tbody class="small">
+                {% for order in orders %}
+                <tr>
+                    <td class="ps-3">
+                        <a href="{{ url_for('admin.order_detail', order_id=order.id) }}" class="fw-semibold text-decoration-none">{{ order.order_number or order.id }}</a>
+                        <div class="text-secondary">{{ order.created_at[:16].replace('T', ' ') if order.created_at else '-' }}</div>
+                    </td>
+                    <td>
+                        {% for item in order['items'] %}
+                        <div>{{ item.product_name }}{% if item.option_info %} <span class="text-secondary">({{ item.option_info }})</span>{% endif %} × {{ item.quantity }}</div>
+                        {% else %}
+                        <span class="text-secondary">주문 상품 정보 없음</span>
+                        {% endfor %}
+                    </td>
+                    <td class="text-center">{{ order.status }}</td>
+                    <td class="text-end pe-3 fw-semibold">{{ order.final_amount|locale_currency }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="4" class="text-center py-4 text-secondary">주문 내역이 없습니다.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

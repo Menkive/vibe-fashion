@@ -128,6 +128,7 @@
                             <div class="d-flex align-items-center justify-content-end gap-1">
                                 <!-- 수동 직접 입력 수정 (set) -->
                                 <form method="POST" action="{{ url_for('admin.adjust_inventory') }}" class="d-flex align-items-center gap-1">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="option_id" value="{{ item.id }}">
                                     <input type="hidden" name="mode" value="set">
                                     <input type="hidden" name="status" value="{{ current_status }}">
@@ -140,6 +141,7 @@
 
                                 <!-- 빠른 입고 단축 버튼 (+10, +20) -->
                                 <form method="POST" action="{{ url_for('admin.adjust_inventory') }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="option_id" value="{{ item.id }}">
                                     <input type="hidden" name="mode" value="delta">
                                     <input type="hidden" name="stock_value" value="10">
@@ -151,6 +153,7 @@
                                 </form>
 
                                 <form method="POST" action="{{ url_for('admin.adjust_inventory') }}" class="d-inline">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="option_id" value="{{ item.id }}">
                                     <input type="hidden" name="mode" value="delta">
                                     <input type="hidden" name="stock_value" value="20">
@@ -164,6 +167,7 @@
                                 <!-- 품절(0개) 처리 단축 버튼 -->
                                 {% if item.stock > 0 %}
                                 <form method="POST" action="{{ url_for('admin.adjust_inventory') }}" class="d-inline" onsubmit="return confirm('이 옵션을 품절(재고 0개) 처리하시겠습니까?');">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                     <input type="hidden" name="option_id" value="{{ item.id }}">
                                     <input type="hidden" name="mode" value="set">
                                     <input type="hidden" name="stock_value" value="0">
@@ -185,6 +189,48 @@
                         </td>
                     </tr>
                 {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="admin-card mt-4">
+    <div class="admin-card-header d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-clock-history text-primary me-1"></i>최근 재고 변경 이력</span>
+        <span class="text-secondary small">최근 {{ inventory_history|length }}건</span>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light small text-secondary">
+                <tr>
+                    <th class="ps-3">처리 시간</th>
+                    <th>상품 / 옵션</th>
+                    <th class="text-end">변경 전</th>
+                    <th class="text-end">변경 수량</th>
+                    <th class="text-end">변경 후</th>
+                    <th>변경 사유</th>
+                    <th class="pe-3">주문번호</th>
+                </tr>
+            </thead>
+            <tbody class="small">
+                {% for entry in inventory_history %}
+                <tr>
+                    <td class="ps-3 text-secondary text-nowrap">{{ entry.changed_at[:19].replace('T', ' ') if entry.changed_at else '-' }}</td>
+                    <td>
+                        <div class="fw-semibold">{{ entry.product_name }}</div>
+                        <div class="text-secondary">{{ entry.color or '기본' }} / {{ entry.size or 'Free' }}</div>
+                    </td>
+                    <td class="text-end">{{ entry.previous_quantity }}</td>
+                    <td class="text-end fw-semibold {% if entry.changed_quantity > 0 %}text-success{% elif entry.changed_quantity < 0 %}text-danger{% endif %}">
+                        {% if entry.changed_quantity > 0 %}+{% endif %}{{ entry.changed_quantity }}
+                    </td>
+                    <td class="text-end fw-semibold">{{ entry.new_quantity }}</td>
+                    <td>{{ entry.reason }}</td>
+                    <td class="pe-3">{% if entry.order_number %}#{{ entry.order_number }}{% else %}-{% endif %}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="7" class="text-center py-4 text-secondary">표시할 재고 변경 이력이 없습니다. 이력 테이블 migration 적용 후 변경부터 기록됩니다.</td></tr>
+                {% endfor %}
             </tbody>
         </table>
     </div>

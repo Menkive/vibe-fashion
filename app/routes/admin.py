@@ -9,6 +9,7 @@
 
 import logging
 from functools import wraps
+
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash, jsonify, abort
 from app.routes.main import get_supabase_admin_client, get_supabase_client, fetch_all_products
 from app.models import INITIAL_PRODUCTS
@@ -25,25 +26,19 @@ def get_db():
 
 
 def is_admin_user():
-    """
-    현재 로그인된 사용자가 관리자인지 확인:
-    1. session에 로그인 정보가 없으면 False
-    2. session['user']['role']이 'admin'이면 True
-    3. 세션 정보에 role이 불확실한 경우, Supabase profiles 테이블에서 실제 'role' 조회
-    4. role == 'admin'인 경우에만 True 반환 (그 외 customer 등 일반 회원은 절대 접근 불가)
-    """
+    """profiles 테이블에서 현재 사용자의 관리자 권한을 확인한다."""
     user_id = session.get('user_id') or session.get('user', {}).get('id')
     if not user_id:
         return False
-    
+
     user_data = session.get('user', {})
     db = get_db()
     if not db:
         return False
 
     try:
-        res = db.table('profiles').select('role').eq('id', user_id).execute()
-        role = res.data[0].get('role') if res.data else None
+        result = db.table('profiles').select('role').eq('id', user_id).execute()
+        role = result.data[0].get('role') if result.data else None
         if isinstance(user_data, dict) and user_data.get('role') != role:
             user_data['role'] = role or 'customer'
             session['user'] = user_data
@@ -55,11 +50,7 @@ def is_admin_user():
 
 
 def admin_required(f):
-    """
-    관리자 접근 제한 데코레이터:
-    - 로그인하지 않은 사용자가 /admin 직접 입력 시 -> 로그인 페이지로 리다이렉트
-    - 로그인했으나 관리자 권한(role != 'admin')이 없는 일반 사용자가 /admin 직접 입력 시 -> 접근 거부 플래시 메시지와 함께 메인 페이지로 차단
-    """
+    """로그인 및 DB의 관리자 역할을 확인하는 데코레이터."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         user_id = session.get('user_id') or session.get('user', {}).get('id')
@@ -73,24 +64,14 @@ def admin_required(f):
     return decorated_function
 
 
-# ==============================================================================
+# ===============================================================================
 # 1. 대시보드 (Dashboard)
-# ==============================================================================
+# ===============================================================================
 @admin_bp.route('/')
 @admin_bp.route('/dashboard')
 @admin_required
 def dashboard():
-    """
-    관리자 메인 대시보드:
-    요구사항 반영 5대 상단 요약 카드:
-    - 오늘 매출 (today_sales)
-    - 오늘 주문 건수 (today_orders_count)
-    - 전체 상품 수 (total_products_count)
-    - 재고 부족 상품 수 (low_stock_products_count)
-    - 품절 상품 수 (out_of_stock_products_count)
-    하단:
-    - 최근 주문 목록 (최근 5~10건)
-    """
+    """관리자 매출, 재고, 최근 주문 및 인기 상품 요약."""
     import datetime
     from collections import defaultdict
     
@@ -105,13 +86,14 @@ def dashboard():
     low_stock_products_count = 0
     out_of_stock_products_count = 0
     recent_orders = []
+    popular_products = []
     
     if db:
         try:
             # 1) 전체 주문 조회 및 오늘 주문/매출 집계
             orders_res = db.table('orders').select('*').order('created_at', desc=True).execute()
-            if orders_res.data:
-                all_orders = orders_res.data
+            all_orders = orders_res.data or []
+            if all_orders:
                 total_orders_count = len(all_orders)
                 recent_orders = all_orders[:8]  # 최근 8건
 
@@ -130,6 +112,34 @@ def dashboard():
                         today_orders_count += 1
                         if is_valid:
                             today_sales += amt
+
+            try:
+                valid_order_ids = {
+                    str(order.get('id')) for order in all_orders
+                    if order.get('status') not in ['cancelled', 'refunded']
+                }
+                item_res = db.table('order_items').select(
+                    'order_id, product_name, quantity'
+                ).execute()
+                units_by_product = defaultdict(int)
+                for item in item_res.data or []:
+                    if str(item.get('order_id')) not in valid_order_ids:
+                        continue
+                    try:
+                        quantity = max(0, int(item.get('quantity') or 0))
+                    except (ValueError, TypeError):
+                        continue
+                    if quantity:
+                        name = item.get('product_name') or '삭제된 상품'
+                        units_by_product[name] += quantity
+                popular_products = [
+                    {'name': name, 'quantity': quantity}
+                    for name, quantity in sorted(
+                        units_by_product.items(), key=lambda row: row[1], reverse=True
+                    )[:5]
+                ]
+            except Exception as e:
+                logger.warning(f"관리자 인기 상품 조회 오류: {e}")
 
             # 2) 전체 상품 및 옵션별 재고 집계
             prods_res = db.table('products').select('id, name, is_active').execute()
@@ -194,7 +204,8 @@ def dashboard():
         total_products_count=total_products_count,
         low_stock_products_count=low_stock_products_count,
         out_of_stock_products_count=out_of_stock_products_count,
-        recent_orders=recent_orders
+        recent_orders=recent_orders,
+        popular_products=popular_products
     )
 
 
@@ -575,9 +586,24 @@ def update_product_option(product_id, option_id):
         stock = int(request.form.get('stock', 0))
         add_price = int(request.form.get('additional_price', 0))
 
+        stock_db = get_supabase_admin_client()
+        if not stock_db:
+            raise RuntimeError('관리자 재고 변경 클라이언트가 설정되지 않았습니다.')
+        stock_result = stock_db.rpc('adjust_product_option_stock', {
+            'p_option_id': option_id,
+            'p_mode': 'set',
+            'p_value': stock,
+            'p_reason': '관리자 옵션 재고 수정',
+            'p_changed_by': session.get('user_id') or (session.get('user') or {}).get('id'),
+        }).execute().data
+        if isinstance(stock_result, list):
+            stock_result = stock_result[0] if stock_result else None
+        if not isinstance(stock_result, dict):
+            raise ValueError('재고 변경 결과를 확인할 수 없습니다.')
+        if not stock_result.get('success'):
+            raise ValueError(stock_result.get('message') or '재고 변경에 실패했습니다.')
+
         update_payload = {
-            'stock': stock,
-            'stock_quantity': stock,
             'additional_price': add_price
         }
         if color:
@@ -838,43 +864,41 @@ def users():
     db = get_db()
     users_list = []
     search_keyword = request.args.get('search', '').strip()
-
     if db:
         try:
-            res = db.table('profiles').select('*').order('created_at', desc=True).execute()
-            all_users = res.data or []
-
-            for u in all_users:
-                # 검색 필터
+            res = db.table('profiles').select(
+                'id, email, full_name, created_at, total_spent'
+            ).order('created_at', desc=True).execute()
+            for member in res.data or []:
                 if search_keyword:
-                    email_str = u.get('email', '') or ''
-                    name_str = u.get('full_name', '') or ''
-                    if search_keyword.lower() not in email_str.lower() and search_keyword.lower() not in name_str.lower():
+                    searchable = f"{member.get('full_name') or ''} {member.get('email') or ''}"
+                    if search_keyword.casefold() not in searchable.casefold():
                         continue
 
-                # 각 회원별 주문 수 및 누적 결제금액 계산
-                order_cnt = 0
-                calc_spent = 0
                 try:
-                    user_orders = db.table('orders').select('final_amount, status').eq('user_id', u.get('id')).execute()
-                    if user_orders.data:
-                        order_cnt = len(user_orders.data)
-                        for uo in user_orders.data:
-                            if uo.get('status') not in ['cancelled', 'refunded']:
-                                calc_spent += int(float(uo.get('final_amount', 0)))
-                except Exception:
-                    pass
+                    orders_res = db.table('orders').select(
+                        'final_amount, status'
+                    ).eq('user_id', member.get('id')).execute()
+                    orders = orders_res.data or []
+                except Exception as e:
+                    logger.warning("회원 주문 요약 조회 실패: %s", e)
+                    orders = []
+
+                total_spent = 0
+                for order in orders:
+                    if order.get('status') not in {'cancelled', 'refunded'}:
+                        try:
+                            total_spent += int(float(order.get('final_amount') or 0))
+                        except (TypeError, ValueError):
+                            continue
 
                 users_list.append({
-                    "id": u.get('id'),
-                    "email": u.get('email'),
-                    "name": u.get('full_name') or '고객',
-                    "phone": u.get('phone_number') or '-',
-                    "role": u.get('role', 'customer'),
-                    "grade": u.get('grade', 'BRONZE'),
-                    "order_count": order_cnt,
-                    "total_spent": calc_spent or int(float(u.get('total_spent', 0) or 0)),
-                    "created_at": u.get('created_at', '')
+                    'id': member.get('id'),
+                    'email': member.get('email'),
+                    'name': member.get('full_name') or '고객',
+                    'order_count': len(orders),
+                    'total_spent': total_spent or int(float(member.get('total_spent') or 0)),
+                    'created_at': member.get('created_at', ''),
                 })
         except Exception as e:
             logger.error(f"관리자 회원 목록 조회 오류: {e}")
@@ -886,6 +910,50 @@ def users():
     )
 
 
+@admin_bp.route('/users/<user_id>')
+@admin_required
+def user_detail(user_id):
+    """필요한 회원 정보와 해당 회원의 주문 내역만 표시한다."""
+    db = get_db()
+    if not db:
+        flash('데이터베이스에 연결할 수 없습니다.', 'danger')
+        return redirect(url_for('admin.users'))
+
+    try:
+        profile_res = db.table('profiles').select(
+            'id, email, full_name, created_at'
+        ).eq('id', user_id).execute()
+        if not profile_res.data:
+            flash('회원을 찾을 수 없습니다.', 'warning')
+            return redirect(url_for('admin.users'))
+
+        orders_res = db.table('orders').select(
+            'id, order_number, created_at, status, final_amount'
+        ).eq('user_id', user_id).order('created_at', desc=True).execute()
+        user_orders = orders_res.data or []
+        items_by_order = {}
+        order_ids = [order.get('id') for order in user_orders if order.get('id')]
+        if order_ids:
+            items_res = db.table('order_items').select(
+                'order_id, product_name, option_info, quantity, subtotal'
+            ).in_('order_id', order_ids).execute()
+            for item in items_res.data or []:
+                items_by_order.setdefault(item.get('order_id'), []).append(item)
+
+        for order in user_orders:
+            order['items'] = items_by_order.get(order.get('id'), [])
+    except Exception as e:
+        logger.error(f"관리자 회원 상세 조회 오류: {e}")
+        flash('회원 주문 내역을 불러오지 못했습니다.', 'danger')
+        return redirect(url_for('admin.users'))
+
+    return render_template(
+        'admin/user_detail.html',
+        member=profile_res.data[0],
+        orders=user_orders
+    )
+
+
 # ==============================================================================
 # 5. 재고 관리 (Inventory)
 # ==============================================================================
@@ -894,7 +962,9 @@ def users():
 def inventory():
     """관리자 재고 관리 (전체 옵션별 실시간 잔여 재고 현황)"""
     db = get_db()
+    history_db = get_supabase_admin_client()
     inventory_items = []
+    inventory_history = []
     status_filter = request.args.get('status', '').strip()
     search_keyword = request.args.get('search', '').strip()
 
@@ -965,9 +1035,20 @@ def inventory():
         except Exception as e:
             logger.error(f"재고 관리 조회 오류: {e}")
 
+    if history_db:
+        try:
+            history_res = history_db.table('inventory_stock_history').select(
+                'product_name, color, size, previous_quantity, changed_quantity, '
+                'new_quantity, reason, order_number, changed_at'
+            ).order('changed_at', desc=True).limit(100).execute()
+            inventory_history = history_res.data or []
+        except Exception as e:
+            logger.warning(f"재고 변경 이력 조회 오류: {e}")
+
     return render_template(
         'admin/inventory.html',
         inventory_items=inventory_items,
+        inventory_history=inventory_history,
         current_status=status_filter,
         search_keyword=search_keyword,
         total_count=total_count,
@@ -985,9 +1066,9 @@ def adjust_inventory():
     - mode: 'set' (직접 입력값으로 설정) 또는 'delta' (현재 재고에 delta 더하기)
     - stock_value: 변경할 수량 또는 가감할 수량 (+20, -5 등)
     """
-    db = get_db()
+    db = get_supabase_admin_client()
     if not db:
-        flash('데이터베이스에 연결할 수 없습니다.', 'danger')
+        flash('관리자 재고 변경 클라이언트가 설정되지 않았습니다.', 'danger')
         return redirect(url_for('admin.inventory'))
 
     option_id = request.form.get('option_id', '').strip()
@@ -1000,44 +1081,48 @@ def adjust_inventory():
 
     try:
         val = int(val_str)
-        # 현재 옵션 정보 조회
-        cur_res = db.table('product_options').select('id, product_id, color, size, stock, stock_quantity, products(name)').eq('id', option_id).execute()
-        if not cur_res.data:
-            flash('해당 옵션을 찾을 수 없습니다.', 'danger')
-            return redirect(url_for('admin.inventory'))
-
-        cur_opt = cur_res.data[0]
-        cur_stock = cur_opt.get('stock')
-        if cur_stock is None:
-            cur_stock = cur_opt.get('stock_quantity', 0)
-        cur_stock = max(0, int(cur_stock))
-
-        if mode == 'delta':
-            # 입고(+) 또는 차감(-)
-            new_stock = max(0, cur_stock + val)
-            action_desc = f"입고 (+{val})" if val > 0 else f"조정 ({val})"
-        else:
-            # 직접 수량 지정
-            new_stock = max(0, val)
-            action_desc = "수동 지정"
-
-        # stock 및 stock_quantity 동시 갱신
-        import datetime
-        now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
-        db.table('product_options').update({
-            'stock': new_stock,
-            'stock_quantity': new_stock,
-            'updated_at': now_iso
-        }).eq('id', option_id).execute()
-
-        prod_name = cur_opt.get('products', {}).get('name', '')
-        color = cur_opt.get('color', '')
-        size = cur_opt.get('size', '')
-
-        flash(f"[{prod_name} - {color}/{size}] 재고가 {cur_stock}개에서 {new_stock}개로 {action_desc} 완료되었습니다.", 'success')
-
     except ValueError:
         flash('수량은 숫자(정수)로 입력해주세요.', 'warning')
+        return redirect(url_for(
+            'admin.inventory',
+            status=request.form.get('status', ''),
+            search=request.form.get('search', '')
+        ))
+
+    try:
+        if mode not in {'set', 'delta'}:
+            raise ValueError('재고 변경 방식이 올바르지 않습니다.')
+        reason = (
+            '관리자 입고' if mode == 'delta' and val > 0
+            else '관리자 출고' if mode == 'delta' and val < 0
+            else '관리자 수동 지정'
+        )
+        result = db.rpc('adjust_product_option_stock', {
+            'p_option_id': option_id,
+            'p_mode': mode,
+            'p_value': val,
+            'p_reason': reason,
+            'p_changed_by': session.get('user_id') or (session.get('user') or {}).get('id'),
+        }).execute().data
+        if isinstance(result, list):
+            result = result[0] if result else None
+        if not isinstance(result, dict):
+            raise ValueError('재고 변경 결과를 확인할 수 없습니다.')
+        if not result.get('success'):
+            raise ValueError(result.get('message') or '재고 변경에 실패했습니다.')
+
+        old_stock = int(result['previous_quantity'])
+        new_stock = int(result['new_quantity'])
+        delta = int(result['changed_quantity'])
+        action_desc = f"입고 (+{delta})" if delta > 0 else f"출고 ({delta})" if delta < 0 else '변경 없음'
+        flash(
+            f"[{result.get('product_name', '상품')} - {result.get('color') or ''}/{result.get('size') or ''}] "
+            f"재고가 {old_stock}개에서 {new_stock}개로 {action_desc} 완료되었습니다.",
+            'success'
+        )
+
+    except ValueError as e:
+        flash(str(e), 'warning')
     except Exception as e:
         logger.error(f"재고 조정 오류: {e}")
         flash(f"재고 수정 중 오류가 발생했습니다: {e}", 'danger')

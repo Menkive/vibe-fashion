@@ -1926,9 +1926,8 @@ def order_create():
     3. 주문번호(VF-YYYYMMDD-랜덤4자리+밀리초3자리) 생성
     4. orders 테이블 INSERT (status='paid', paid_at=now())
     5. order_items INSERT (상품명, 색상, 사이즈, 가격 스냅샷 저장)
-    6. product_options 테이블 재고 차감 (WHERE stock >= 수량 조건부 UPDATE,
-       service_role 키를 사용하여 RLS 우회,
-       실패 시 '방금 재고가 소진되었습니다' 오류와 함께 전체 롤백)
+     6. service_role 재고 RPC로 재고를 원자적으로 차감하고 변경 이력을 기록
+         실패 시 재고가 소진된 것으로 처리하고 앞선 차감을 이력과 함께 롤백
     7. carts 삭제
     8. /order/complete/<order_id> 리다이렉트 (JSON 요청 시 redirect_url 반환)
     """
@@ -1956,6 +1955,11 @@ def order_create():
 
     if not db_client:
         return jsonify({"success": False, "message": "데이터베이스 연결에 실패했습니다."}), 500
+    if not admin_client:
+        return jsonify({
+            "success": False,
+            "message": "안전한 재고 처리를 위한 관리자 데이터베이스 설정이 필요합니다."
+        }), 503
 
     # 1. 장바구니 조회 및 재고 확인
     try:
@@ -2122,45 +2126,24 @@ def order_create():
         if not order_items_res.data:
             raise Exception("주문 상세 품목 저장에 실패했습니다.")
 
-        # 6. product_options 테이블 재고 차감 (WHERE stock >= 수량 조건부 UPDATE, RLS 우회)
-        # service_role 클라이언트 사용
+        # 6. service_role RPC에서 재고 차감과 변경 이력을 원자적으로 처리
         update_client = admin_client or db_client
 
         for item in cart_items:
             opt_id = item['option_id']
             qty = item['quantity']
 
-            # 최신 재고 다시 확인 및 조건부 UPDATE
-            # WHERE id = opt_id AND stock >= qty
-            check_opt = update_client.table('product_options').select('id, stock, stock_quantity').eq('id', opt_id).execute()
-            if not check_opt.data:
-                raise Exception("방금 재고가 소진되었습니다")
-
-            current_stock_val = check_opt.data[0].get('stock')
-            if current_stock_val is None:
-                current_stock_val = check_opt.data[0].get('stock_quantity', 0)
-            current_stock_val = int(current_stock_val)
-
-            if current_stock_val < qty:
-                raise Exception("방금 재고가 소진되었습니다")
-
-            new_stock = current_stock_val - qty
-            update_data = {}
-            if 'stock' in check_opt.data[0]:
-                update_data['stock'] = new_stock
-            if 'stock_quantity' in check_opt.data[0]:
-                update_data['stock_quantity'] = new_stock
-
-            # 조건부 업데이트 실행 (gte('stock', qty))
-            update_query = update_client.table('product_options').update(update_data).eq('id', opt_id)
-            if 'stock' in check_opt.data[0]:
-                update_query = update_query.gte('stock', qty)
-            else:
-                update_query = update_query.gte('stock_quantity', qty)
-
-            update_res = update_query.execute()
-
-            if not update_res.data or len(update_res.data) == 0:
+            stock_result = update_client.rpc('adjust_product_option_stock', {
+                'p_option_id': opt_id,
+                'p_mode': 'delta',
+                'p_value': -int(qty),
+                'p_reason': '주문',
+                'p_order_id': created_order_id,
+                'p_changed_by': user_id,
+            }).execute().data
+            if isinstance(stock_result, list):
+                stock_result = stock_result[0] if stock_result else None
+            if not isinstance(stock_result, dict) or not stock_result.get('success'):
                 raise Exception("방금 재고가 소진되었습니다")
 
             deducted_options.append((opt_id, qty))
@@ -2203,14 +2186,18 @@ def order_create():
             rollback_client = admin_client or db_client
             for opt_id, qty in deducted_options:
                 try:
-                    cur = rollback_client.table('product_options').select('id, stock, stock_quantity').eq('id', opt_id).execute()
-                    if cur.data:
-                        revert_data = {}
-                        if 'stock' in cur.data[0] and cur.data[0]['stock'] is not None:
-                            revert_data['stock'] = int(cur.data[0]['stock']) + qty
-                        if 'stock_quantity' in cur.data[0] and cur.data[0]['stock_quantity'] is not None:
-                            revert_data['stock_quantity'] = int(cur.data[0]['stock_quantity']) + qty
-                        rollback_client.table('product_options').update(revert_data).eq('id', opt_id).execute()
+                    rollback_result = rollback_client.rpc('adjust_product_option_stock', {
+                        'p_option_id': opt_id,
+                        'p_mode': 'delta',
+                        'p_value': int(qty),
+                        'p_reason': '주문 생성 롤백',
+                        'p_order_id': created_order_id,
+                        'p_changed_by': user_id,
+                    }).execute().data
+                    if isinstance(rollback_result, list):
+                        rollback_result = rollback_result[0] if rollback_result else None
+                    if not isinstance(rollback_result, dict) or not rollback_result.get('success'):
+                        raise RuntimeError('재고 복구 RPC가 실패했습니다.')
                 except Exception as rbe:
                     logger.critical(f"재고 롤백 실패 (opt_id: {opt_id}): {rbe}")
 

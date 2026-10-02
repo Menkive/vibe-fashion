@@ -6,7 +6,7 @@
 <div class="d-flex justify-content-between align-items-center mb-4">
     <div>
         <h3 class="fw-bold mb-1">가입 회원 및 고객 관리</h3>
-        <p class="text-secondary small mb-0">양산시민축구단 공식 팀스토어에 가입한 고객들의 등급, 주문 건수 및 총 누적 구매 실적을 조회합니다.</p>
+        <p class="text-secondary small mb-0">회원 기본 정보와 주문 및 누적 구매 실적을 확인합니다.</p>
     </div>
 </div>
 
@@ -41,12 +41,10 @@
                 <tr>
                     <th class="ps-3">회원명</th>
                     <th>이메일 계정</th>
-                    <th>연락처</th>
-                    <th>회원 등급</th>
-                    <th>권한(Role)</th>
                     <th>총 주문 건수</th>
                     <th>누적 구매액</th>
-                    <th class="pe-3">가입일</th>
+                    <th>가입일</th>
+                    <th class="pe-3">상세</th>
                 </tr>
             </thead>
             <tbody class="small">
@@ -54,36 +52,22 @@
                     {% for u in users %}
                     <tr>
                         <td class="ps-3 fw-bold text-dark">
-                            <i class="bi bi-person-circle text-secondary me-1"></i> {{ u.name }}
+                            <a href="{{ url_for('admin.user_detail', user_id=u.id) }}" class="text-decoration-none text-dark">
+                                <i class="bi bi-person-circle text-secondary me-1"></i>{{ u.name }}
+                            </a>
                         </td>
                         <td class="font-monospace text-secondary">{{ u.email }}</td>
-                        <td>{{ u.phone }}</td>
-                        <td>
-                            {% if u.grade == 'VIP' %}
-                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold">VIP</span>
-                            {% elif u.grade == 'GOLD' %}
-                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-bold">GOLD</span>
-                            {% elif u.grade == 'SILVER' %}
-                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fw-bold">SILVER</span>
-                            {% else %}
-                                <span class="badge bg-light text-dark border">BRONZE</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if u.role == 'admin' %}
-                                <span class="badge bg-primary text-white">관리자</span>
-                            {% else %}
-                                <span class="badge bg-light text-secondary border">일반고객</span>
-                            {% endif %}
-                        </td>
                         <td class="fw-semibold text-center">{{ u.order_count }}건</td>
                         <td class="fw-bold text-primary">{{ u.total_spent | locale_currency }}</td>
-                        <td class="pe-3 text-secondary">{{ u.created_at[:10] if u.created_at else '-' }}</td>
+                        <td class="text-secondary">{{ u.created_at[:10] if u.created_at else '-' }}</td>
+                        <td class="pe-3">
+                            <a href="{{ url_for('admin.user_detail', user_id=u.id) }}" class="btn btn-sm btn-outline-secondary">주문 보기</a>
+                        </td>
                     </tr>
                     {% endfor %}
                 {% else %}
                     <tr>
-                        <td colspan="8" class="text-center py-4 text-secondary">
+                        <td colspan="6" class="text-center py-4 text-secondary">
                             조회된 회원이 없습니다.
                         </td>
                     </tr>

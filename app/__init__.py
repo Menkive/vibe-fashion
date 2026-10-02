@@ -94,6 +94,7 @@ def create_app():
         'main.login', 'main.signup', 'main.logout',
         'auth.login', 'auth.signup', 'auth.resend_confirmation',
         'auth.complete_social_signup', 'auth.forgot_password', 'auth.reset_password',
+        'admin.adjust_inventory', 'admin.add_product_option', 'admin.update_product_option',
     }
 
     @app.before_request

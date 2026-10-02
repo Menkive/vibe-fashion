@@ -129,6 +129,7 @@
                             <tr>
                                 <form method="POST" action="{{ url_for('admin.update_product_option', product_id=product.id, option_id=opt.id) }}">
                                     <td>
+                                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                                         <input type="text" name="color" class="form-control form-control-sm px-1 py-0" value="{{ opt.color or '' }}" style="font-size: 0.8rem;">
                                     </td>
                                     <td>
@@ -165,6 +166,7 @@
         <div class="admin-card p-4">
             <h6 class="fw-bold mb-3"><i class="bi bi-plus-circle text-success me-1"></i> 새 옵션 추가</h6>
             <form method="POST" action="{{ url_for('admin.add_product_option', product_id=product.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="row g-2 mb-2">
                     <div class="col-6">
                         <label class="form-label small text-secondary mb-1">색상 (Color) <span class="text-danger">*</span></label>
