@@ -51,10 +51,12 @@ def create_app():
     # routes 폴더에서 블루프린트(라우트 모듈) 가져오기
     from app.routes.main import main_bp
     from app.routes.auth import auth_bp
+    from app.routes.admin import admin_bp
 
     # 앱에 블루프린트 등록
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp)
+    app.register_blueprint(admin_bp)
 
     # 전역 요청 가드: 약관 동의를 완료하지 않은 소셜 로그인 회원은 /auth/social-signup 외 다른 페이지 접근 제한
     from flask import request as flask_req, redirect, url_for, session as flask_sess

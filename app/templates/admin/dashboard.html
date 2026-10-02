@@ -1,0 +1,162 @@
+{% extends "admin/base.html" %}
+
+{% block title %}대시보드 | 양산시민축구단 관리자 센터{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold mb-1">스토어 현황 대시보드</h3>
+        <p class="text-secondary small mb-0">양산시민축구단 공식 팀스토어의 핵심 판매 및 운영 지표를 한눈에 파악합니다.</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('admin.products') }}" class="btn btn-outline-primary btn-sm px-3">
+            <i class="bi bi-box-seam me-1"></i> 상품 관리
+        </a>
+        <a href="{{ url_for('admin.orders') }}" class="btn btn-primary btn-sm px-3">
+            <i class="bi bi-receipt me-1"></i> 주문 관리
+        </a>
+    </div>
+</div>
+
+<!-- 4대 핵심 지표 카드 -->
+<div class="row g-3 mb-4">
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card" style="border-left-color: #004ea2;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-secondary small fw-semibold">총 누적 매출액</span>
+                    <h4 class="fw-bold mt-1 mb-0">{{ total_sales | locale_currency }}</h4>
+                </div>
+                <div class="stat-icon bg-primary bg-opacity-10 text-primary">
+                    <i class="bi bi-currency-won"></i>
+                </div>
+            </div>
+            <div class="mt-2 text-secondary small" style="font-size: 0.78rem;">
+                <i class="bi bi-check-circle-fill text-success me-1"></i> 유효 결제 완료 기준
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card" style="border-left-color: #059669;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-secondary small fw-semibold">총 주문 건수</span>
+                    <h4 class="fw-bold mt-1 mb-0">{{ total_orders_count }}건</h4>
+                </div>
+                <div class="stat-icon bg-success bg-opacity-10 text-success">
+                    <i class="bi bi-bag-check-fill"></i>
+                </div>
+            </div>
+            <div class="mt-2 text-secondary small" style="font-size: 0.78rem;">
+                <a href="{{ url_for('admin.orders') }}" class="text-decoration-none text-success fw-semibold">
+                    주문 내역 보기 <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card" style="border-left-color: #d97706;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-secondary small fw-semibold">등록 상품 수</span>
+                    <h4 class="fw-bold mt-1 mb-0">{{ total_products_count }}개</h4>
+                </div>
+                <div class="stat-icon bg-warning bg-opacity-10 text-warning">
+                    <i class="bi bi-box-seam-fill"></i>
+                </div>
+            </div>
+            <div class="mt-2 text-secondary small" style="font-size: 0.78rem;">
+                <a href="{{ url_for('admin.products') }}" class="text-decoration-none text-warning fw-semibold">
+                    카탈로그 점검 <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+    <div class="col-xl-3 col-md-6">
+        <div class="stat-card" style="border-left-color: #7c3aed;">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <span class="text-secondary small fw-semibold">가입 회원 수</span>
+                    <h4 class="fw-bold mt-1 mb-0">{{ total_users_count }}명</h4>
+                </div>
+                <div class="stat-icon bg-purple bg-opacity-10 text-purple" style="color: #7c3aed; background: rgba(124, 58, 237, 0.1);">
+                    <i class="bi bi-people-fill"></i>
+                </div>
+            </div>
+            <div class="mt-2 text-secondary small" style="font-size: 0.78rem;">
+                <a href="{{ url_for('admin.users') }}" class="text-decoration-none fw-semibold" style="color: #7c3aed;">
+                    회원 목록 보기 <i class="bi bi-arrow-right"></i>
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- 최근 주문 현황 테이블 -->
+<div class="admin-card">
+    <div class="admin-card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-clock-history text-primary"></i>
+            <span>최근 주문 내역</span>
+        </div>
+        <a href="{{ url_for('admin.orders') }}" class="btn btn-sm btn-outline-secondary" style="font-size: 0.8rem;">
+            전체보기 <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light small text-secondary">
+                <tr>
+                    <th class="ps-3">주문번호</th>
+                    <th>주문자/수령인</th>
+                    <th>연락처</th>
+                    <th>결제금액</th>
+                    <th>주문상태</th>
+                    <th>주문일시</th>
+                    <th class="text-center pe-3">관리</th>
+                </tr>
+            </thead>
+            <tbody class="small">
+                {% if recent_orders %}
+                    {% for ord in recent_orders %}
+                    <tr>
+                        <td class="ps-3 fw-bold text-primary font-monospace">{{ ord.order_number }}</td>
+                        <td>{{ ord.recipient_name or '고객' }}</td>
+                        <td class="text-secondary">{{ ord.recipient_phone or '-' }}</td>
+                        <td class="fw-bold">{{ ord.final_amount | locale_currency }}</td>
+                        <td>
+                            {% if ord.status == 'paid' %}
+                                <span class="badge bg-success-subtle text-success border border-success-subtle status-badge">결제완료</span>
+                            {% elif ord.status == 'preparing' %}
+                                <span class="badge bg-info-subtle text-info border border-info-subtle status-badge">배송준비</span>
+                            {% elif ord.status == 'shipping' %}
+                                <span class="badge bg-primary-subtle text-primary border border-primary-subtle status-badge">배송중</span>
+                            {% elif ord.status == 'delivered' %}
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle status-badge">배송완료</span>
+                            {% elif ord.status == 'cancelled' %}
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle status-badge">취소됨</span>
+                            {% else %}
+                                <span class="badge bg-light text-dark status-badge">{{ ord.status }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-secondary">{{ ord.created_at[:16].replace('T', ' ') if ord.created_at else '-' }}</td>
+                        <td class="text-center pe-3">
+                            <a href="{{ url_for('admin.order_detail', order_id=ord.id) }}" class="btn btn-sm btn-light border py-1 px-2" style="font-size: 0.78rem;">
+                                상세조회
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="text-center py-4 text-secondary">
+                            <i class="bi bi-inbox fs-4 d-block mb-1"></i>
+                            아직 접수된 주문 내역이 없습니다.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

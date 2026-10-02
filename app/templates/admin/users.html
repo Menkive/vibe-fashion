@@ -1,0 +1,95 @@
+{% extends "admin/base.html" %}
+
+{% block title %}회원 관리 | 양산시민축구단 관리자 센터{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3 class="fw-bold mb-1">가입 회원 및 고객 관리</h3>
+        <p class="text-secondary small mb-0">양산시민축구단 공식 팀스토어에 가입한 고객들의 등급, 주문 건수 및 총 누적 구매 실적을 조회합니다.</p>
+    </div>
+</div>
+
+<!-- 검색 바 -->
+<div class="admin-card p-3 mb-4">
+    <form method="GET" action="{{ url_for('admin.users') }}" class="row g-2 align-items-center">
+        <div class="col-md-9">
+            <div class="input-group input-group-sm">
+                <input type="text" name="search" class="form-control" placeholder="회원 이름 또는 이메일 검색..." value="{{ search_keyword }}">
+                <button class="btn btn-primary" type="submit"><i class="bi bi-search"></i> 검색</button>
+            </div>
+        </div>
+        <div class="col-md-3 text-end">
+            <a href="{{ url_for('admin.users') }}" class="btn btn-outline-secondary btn-sm w-100">
+                <i class="bi bi-arrow-clockwise"></i> 검색 초기화
+            </a>
+        </div>
+    </form>
+</div>
+
+<!-- 회원 목록 테이블 -->
+<div class="admin-card">
+    <div class="admin-card-header d-flex justify-content-between align-items-center">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-people text-primary"></i>
+            <span>총 <strong>{{ users|length }}</strong>명 회원</span>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="table-light small text-secondary">
+                <tr>
+                    <th class="ps-3">회원명</th>
+                    <th>이메일 계정</th>
+                    <th>연락처</th>
+                    <th>회원 등급</th>
+                    <th>권한(Role)</th>
+                    <th>총 주문 건수</th>
+                    <th>누적 구매액</th>
+                    <th class="pe-3">가입일</th>
+                </tr>
+            </thead>
+            <tbody class="small">
+                {% if users %}
+                    {% for u in users %}
+                    <tr>
+                        <td class="ps-3 fw-bold text-dark">
+                            <i class="bi bi-person-circle text-secondary me-1"></i> {{ u.name }}
+                        </td>
+                        <td class="font-monospace text-secondary">{{ u.email }}</td>
+                        <td>{{ u.phone }}</td>
+                        <td>
+                            {% if u.grade == 'VIP' %}
+                                <span class="badge bg-danger-subtle text-danger border border-danger-subtle fw-bold">VIP</span>
+                            {% elif u.grade == 'GOLD' %}
+                                <span class="badge bg-warning-subtle text-warning-emphasis border border-warning-subtle fw-bold">GOLD</span>
+                            {% elif u.grade == 'SILVER' %}
+                                <span class="badge bg-secondary-subtle text-secondary border border-secondary-subtle fw-bold">SILVER</span>
+                            {% else %}
+                                <span class="badge bg-light text-dark border">BRONZE</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if u.role == 'admin' %}
+                                <span class="badge bg-primary text-white">관리자</span>
+                            {% else %}
+                                <span class="badge bg-light text-secondary border">일반고객</span>
+                            {% endif %}
+                        </td>
+                        <td class="fw-semibold text-center">{{ u.order_count }}건</td>
+                        <td class="fw-bold text-primary">{{ u.total_spent | locale_currency }}</td>
+                        <td class="pe-3 text-secondary">{{ u.created_at[:10] if u.created_at else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="8" class="text-center py-4 text-secondary">
+                            조회된 회원이 없습니다.
+                        </td>
+                    </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

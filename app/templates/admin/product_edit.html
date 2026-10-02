@@ -1,0 +1,92 @@
+{% extends "admin/base.html" %}
+
+{% block title %}상품 정보 수정 | 양산시민축구단 관리자 센터{% endblock %}
+
+{% block content %}
+<div class="mb-4">
+    <a href="{{ url_for('admin.products') }}" class="btn btn-sm btn-outline-secondary mb-2">
+        <i class="bi bi-arrow-left"></i> 상품 목록으로 돌아가기
+    </a>
+    <h3 class="fw-bold mb-1">상품 정보 및 옵션 수정</h3>
+    <p class="text-secondary small mb-0">[{{ product.name }}] 상품의 기본 판매 가격, 뱃지 및 상태를 편집합니다.</p>
+</div>
+
+<div class="row g-4">
+    <div class="col-lg-8">
+        <div class="admin-card p-4">
+            <form method="POST" action="{{ url_for('admin.edit_product', product_id=product.id) }}">
+                <div class="mb-3">
+                    <label class="form-label fw-bold small">상품명</label>
+                    <input type="text" name="name" class="form-control" value="{{ product.name }}" required>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">판매 가격 (원)</label>
+                        <input type="number" name="price" class="form-control" value="{{ product.price|int }}" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">정상 소비자가 (원 - 할인율 표시용)</label>
+                        <input type="number" name="original_price" class="form-control" value="{{ product.original_price|int if product.original_price else '' }}" placeholder="미할인 시 비워둠">
+                    </div>
+                </div>
+
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">대표 뱃지 (Badge)</label>
+                        <select name="badge" class="form-select">
+                            <option value="" {% if not product.badge %}selected{% endif %}>선택 안함</option>
+                            <option value="BEST" {% if product.badge == 'BEST' %}selected{% endif %}>BEST (베스트)</option>
+                            <option value="NEW" {% if product.badge == 'NEW' %}selected{% endif %}>NEW (신상품)</option>
+                            <option value="HOT" {% if product.badge == 'HOT' %}selected{% endif %}>HOT (인기)</option>
+                            <option value="KIDS" {% if product.badge == 'KIDS' %}selected{% endif %}>KIDS (어린이)</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold small">판매 노출 여부</label>
+                        <select name="is_active" class="form-select">
+                            <option value="true" {% if product.is_active %}selected{% endif %}>판매중 (고객 노출)</option>
+                            <option value="false" {% if not product.is_active %}selected{% endif %}>판매중지 (미노출 / 품절)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <label class="form-label fw-bold small">상품 상세 설명</label>
+                    <textarea name="description" class="form-control" rows="5">{{ product.description or '' }}</textarea>
+                </div>
+
+                <div class="d-flex justify-content-end gap-2">
+                    <a href="{{ url_for('admin.products') }}" class="btn btn-secondary px-4">취소</a>
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-check-lg me-1"></i> 수정사항 저장
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 옵션 및 재고 현황 (참조) -->
+    <div class="col-lg-4">
+        <div class="admin-card p-3">
+            <h6 class="fw-bold mb-3"><i class="bi bi-list-check text-primary me-1"></i> 현재 등록된 옵션 및 재고</h6>
+            {% if options %}
+                <ul class="list-group list-group-flush small">
+                    {% for opt in options %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center px-0">
+                        <div>
+                            <span class="fw-bold">{{ opt.color }}</span> / <span>{{ opt.size }}</span>
+                        </div>
+                        <span class="badge bg-light text-dark border">
+                            재고 {{ opt.stock if opt.stock is not none else opt.stock_quantity }}개
+                        </span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p class="text-secondary small mb-0">등록된 상세 옵션이 없습니다. (단일 상품)</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
